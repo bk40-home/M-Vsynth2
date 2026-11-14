@@ -1,3 +1,6 @@
 [submodule "third_party/fm1-kit"]
 	path = third_party/fm1-kit
 	url = https://github.com/bk40-home/fm1-kit.git
+[submodule "third_party/oxo_synth2"]
+	path = third_party/oxo_synth2
+	url = https://github.com/chab/oxo_synth2
