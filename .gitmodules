@@ -4,3 +4,4 @@
 [submodule "third_party/oxo_synth2"]
 	path = third_party/oxo_synth2
 	url = https://github.com/chab/oxo_synth2
+	ignore = dirty
