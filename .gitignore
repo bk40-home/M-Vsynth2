@@ -1,0 +1,8 @@
+build/
+__pycache__/
+.DS_Store
+
+# Local working backups, *.bak_* copies and the manual-delete staging area
+/_backup_*/
+/_to_delete/
+*.bak_*

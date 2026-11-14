@@ -1,0 +1,39 @@
+# the panel: HOME, a section's pages, a knob, the bank browser, SAVE (FM-1 ids: enc SELECT 0, ALGORITHM 1, KNOB1..4 2..5, PRESETS 6)
+500 shot
+600 keys 0x1000
+900 keys 0
+1000 btn 5
+1100 shot
+1200 enc 2 5
+1300 shot
+1400 btn 5
+1500 shot
+1600 btn 2
+1700 enc 3 -10
+1800 shot
+1900 btn 11
+2000 shot
+2100 btn 7
+2200 shot
+2300 enc 6 2
+2500 shot
+2600 btn 9
+2700 shot
+2800 enc 3 3
+2900 btn 9
+3000 shot
+3100 btn 8
+3200 shot
+3300 btn 7
+3350 btn 7
+3400 btn 7
+3450 btn 7
+3500 btn 7
+3600 shot
+3700 enc 4 -20
+3800 shot
+3900 btndown 10
+4400 btnup 10
+4500 shot
+4600 btn 10
+4700 shot

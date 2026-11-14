@@ -1,0 +1,49 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# The web pages on GitHub Pages: the simulator built here (Emscripten: no emcc needed on your computer), then docs/
+# (the simulator, the patch library, the cheat sheet) published. Settings > Pages > Source: "GitHub Actions".
+# Runs on every push to main, or by hand (Actions > pages > Run workflow).
+name: pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive            # third_party/fm1-kit (the look, the library)
+
+      - uses: mymindstorm/setup-emsdk@v14
+
+      - name: The simulator's platform, tested natively first
+        run: sh tests/run_websim.sh
+
+      - name: Build the simulator (docs/sim)
+        run: sh sim/build.sh
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

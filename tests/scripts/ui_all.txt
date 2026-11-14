@@ -1,0 +1,99 @@
+# the screens (vs_ui.c), every one: HOME with a chord, all 28 pages (ALGORITHM), a knob in hand on FILTER, GLOBAL's
+# two pages and the six themes, BANK, SAVE. FM-1 ids: enc SELECT 0, ALGORITHM 1, KNOB1..4 2..5, PRESETS 6;
+# buttons: 2 FX, 5 LFO, 7 GLO, 8 HOME, 9 SAVE, 10 ARP, 11 SEQ (as tests/scripts/ui.txt)
+#   tests/run_host.sh tests/scripts/ui_all.txt
+100 enc 6 3
+300 keys 0x4890
+700 shot
+800 enc 1 1
+900 shot
+1000 enc 1 1
+1100 shot
+1200 enc 1 1
+1300 shot
+1400 enc 1 1
+1500 shot
+1600 enc 1 1
+1700 shot
+1800 enc 1 1
+1900 shot
+2000 enc 1 1
+2100 shot
+2200 enc 1 1
+2300 shot
+2400 enc 1 1
+2500 shot
+2600 enc 1 1
+2700 shot
+2800 enc 1 1
+2900 shot
+3000 enc 1 1
+3100 shot
+3200 enc 1 1
+3300 shot
+3400 enc 3 -30
+3500 shot
+3600 enc 1 1
+3700 shot
+3800 enc 1 1
+3900 shot
+4000 enc 1 1
+4100 shot
+4200 enc 1 1
+4300 shot
+4400 enc 1 1
+4500 shot
+4600 enc 1 1
+4700 shot
+4800 enc 1 1
+4900 shot
+5000 enc 1 1
+5100 shot
+5200 enc 1 1
+5300 shot
+5400 enc 1 1
+5500 shot
+5600 enc 1 1
+5700 shot
+5800 enc 1 1
+5900 shot
+6000 enc 1 1
+6100 shot
+6200 enc 1 1
+6300 shot
+6400 enc 1 1
+6500 shot
+6600 keys 0
+7000 btn 7
+7100 btn 7
+7200 shot
+7300 btn 7
+7400 shot
+7500 enc 2 1
+7700 shot
+7800 enc 2 1
+8000 shot
+8100 enc 2 1
+8300 shot
+8400 enc 2 1
+8600 shot
+8700 enc 2 1
+8900 shot
+9000 enc 3 1
+9100 shot
+9200 enc 1 13
+9300 keys 0x4890
+9500 shot
+9600 keys 0
+9700 btn 7
+9750 btn 7
+9800 btn 7
+9850 enc 3 -1
+9900 enc 2 -5
+9950 btn 11
+10000 shot
+10100 btn 9
+10300 shot
+10400 btn 8
+10600 shot
+11000 end

@@ -1,0 +1,76 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<html lang="en" data-theme="sea">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>M-Vsynth2 simulator</title>
+<!-- The FM-1 running M-Vsynth2 in the browser: the firmware itself (firmware/src/mvsynth2.c), built to WebAssembly by
+     sim/build.sh with sim/vs_websim.c as its platform. The look is fm1-kit's (theme.css, sim.css: the same in every
+     firmware's simulator). ?v=20261114224758: build.sh stamps the build, so no stale cached script. -->
+<link rel="stylesheet" href="theme.css?v=20261114224758">
+<link rel="stylesheet" href="sim.css?v=20261114224758">
+<script src="theme.js?v=20261114224758"></script>
+
+<header class="kit-top">
+  <span class="badge">SIMULATOR</span>
+  <span class="name">M-Vsynth2</span>
+  <span class="spacer"></span>
+  <a class="btn" href="../library.html">Patch library</a>
+  <a class="btn" href="../cheatsheet.html">Cheat sheet</a>
+  <label>Theme <select data-theme-picker aria-label="Theme"></select></label>
+</header>
+
+<div class="page">
+<div class="topbar">
+  <button id="start" class="primary">&#9654; Start audio</button>
+  <span id="mode" class="mode">Emulator</span>
+</div>
+
+<div class="synth">
+  <div class="top">
+    <div class="kgrid">
+      <div class="kwrap"><div class="klabel">Select</div><div class="knob" data-enc="0" role="slider" aria-label="Select" tabindex="0"><i class="ind"></i></div></div>
+      <div class="kwrap"><div class="klabel">Presets</div><div class="knob" data-enc="6" role="slider" aria-label="Presets" tabindex="0"><i class="ind"></i></div></div>
+      <div class="kwrap"><div class="klabel">Algo</div><div class="knob" data-enc="1" role="slider" aria-label="Algorithm" tabindex="0"><i class="ind"></i></div></div>
+      <div></div>
+      <div class="octrow"><button data-btn="0">OCT &#8722;</button><button data-btn="1">OCT +</button></div>
+    </div>
+
+    <div class="lcd"><canvas id="screen" width="240" height="240" aria-label="The FM-1's screen"></canvas></div>
+
+    <div class="right">
+      <div class="krow">
+        <div class="kwrap"><div class="klabel">Knob 1</div><div class="knob" data-enc="2" role="slider" aria-label="Knob 1" tabindex="0"><i class="ind"></i></div></div>
+        <div class="kwrap"><div class="klabel">Knob 2</div><div class="knob" data-enc="3" role="slider" aria-label="Knob 2" tabindex="0"><i class="ind"></i></div></div>
+        <div class="kwrap"><div class="klabel">Knob 3</div><div class="knob" data-enc="4" role="slider" aria-label="Knob 3" tabindex="0"><i class="ind"></i></div></div>
+        <div class="kwrap"><div class="klabel">Knob 4</div><div class="knob" data-enc="5" role="slider" aria-label="Knob 4" tabindex="0"><i class="ind"></i></div></div>
+      </div>
+      <div class="btngrid">
+        <button data-btn="2">FX</button>
+        <button data-btn="3">SEL</button>
+        <button data-btn="4">ENV</button>
+        <button data-btn="5">LFO</button>
+        <button data-btn="6">EDIT</button>
+        <button data-btn="7">GLO</button>
+        <button data-btn="8">HOME</button>
+        <button data-btn="9">SAVE</button>
+        <button data-btn="10">ARP</button>
+        <button data-btn="11">SEQ</button>
+        <button data-btn="12">PLAY</button>
+        <button data-btn="13" class="rec">REC</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="kbwell"><div id="keys"></div></div>
+</div>
+
+<p class="help"><kbd>Z</kbd>&ndash;<kbd>/</kbd> play the keys &nbsp;·&nbsp; turn a knob: drag, scroll, or focus it and use
+  <kbd>&uarr;</kbd><kbd>&darr;</kbd> &nbsp;·&nbsp; <kbd>[</kbd> <kbd>]</kbd> octave &nbsp;·&nbsp; a MIDI keyboard plays it too
+  &nbsp;·&nbsp; click &#9654; Start audio first. Nothing is saved when the page closes: keep patches in the
+  <a href="../library.html">patch library</a>.</p>
+</div>
+
+<script src="mvsynth2.js?v=20261114224758"></script>
+<script type="module" src="sim.js?v=20261114224758"></script>
+</html>

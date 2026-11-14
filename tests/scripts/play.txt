@@ -1,0 +1,25 @@
+# Stage 4a (FM-1 ids: enc KNOB1..4 = 2..5, PRESETS = 6): the INIT patch on a key, a chord, FREQ down on KNOB1 while
+# it sounds, the next programs on PRESETS and a key each, MIDI in (a note, the bend, a program change).
+# tests/run_host.sh tests/scripts/play.txt
+300 keys 0x80
+900 keys 0
+1000 shot
+1200 keys 0x1091
+1500 enc 2 -40
+2200 keys 0
+2400 shot
+2600 enc 6 1
+2800 keys 0x80
+3400 keys 0
+3500 shot
+3700 enc 6 3
+3900 keys 0x1091
+4600 keys 0
+4700 shot
+4900 midi 0xC0 33 0
+5100 midi 0x90 60 110
+5300 midi 0xE0 0 127
+5600 midi 0xE0 0 64
+5900 midi 0x80 60 0
+6300 shot
+6800 end

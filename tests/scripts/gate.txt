@@ -1,0 +1,21 @@
+# Stage 3, the gate (firmware/src/vs_gate.h; FM-1 ids: enc KNOB1..3 = 2..4): boot on 8 voices, +SUB, SVF; then the
+# lighter loads, LP24, 16 voices, a key (BASE), TABLES RAM and SPREAD 0 (enc KNOB4 = 5, SELECT = 0), no voices. tests/run_host.sh tests/scripts/gate.txt
+1000 shot
+1200 enc 3 -1
+2200 shot
+2400 enc 3 -1
+3400 shot
+3600 enc 3 2
+3700 enc 4 1
+4700 shot
+4900 enc 2 8
+5900 shot
+6000 keys 0x1000
+6100 keys 0
+7000 shot
+7100 enc 5 1
+7150 enc 0 -5
+7180 shot
+7200 enc 2 -16
+8000 shot
+8500 end

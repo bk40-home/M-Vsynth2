@@ -1,0 +1,152 @@
+# SPDX-License-Identifier: GPL-3.0-only
+# M-Vsynth2 parameter overlay, keyed by Synth1 parameter index (= .sy1 line index = Synth2 ParamId).
+# Ranges, defaults and the INIT patch come from Synth2 (EngineCore/Params.hpp, InitPatch.hpp: MIT, F. Chabloz);
+# this file adds what the panel needs. tools/gen_params.py merges the two into firmware/gen/vs_params.h.
+#
+#   key    C name suffix (VS_P_<KEY>)        label  panel label, <= 7 characters (240 px / 4 knobs)
+#   sec    panel section                     kind   num / signed (shown value - centre) / switch / enum / table
+#   cc     the panel's MIDI CC (decision 9; none: the routing words and POLY)
+#
+# pages: the panel in its order: the button, the title, the four knobs' parameters (~ an empty column). Every
+#   parameter is on one page exactly, but 59 (ARP on / off: the ARP button's tap). gen_params.py checks it.
+# fx_knobs: what CTRL 1, CTRL 2 and LEVEL are called in each EFFECT type (Synth2's DisplayName, as panel labels).
+params:
+  0:  {key: OSC1_SHAPE,    label: "SHAPE",   sec: OSC1,    kind: enum,    cc: 17, choices: [SINE, SAW, PULSE, TRI]}
+  1:  {key: OSC2_SHAPE,    label: "SHAPE",   sec: OSC2,    kind: enum,    cc: 24, choices: [SAW, PULSE, TRI, NOISE]}
+  2:  {key: OSC2_PITCH,    label: "PITCH",   sec: OSC2,    kind: table,   cc: 25, unit: "semitones"}
+  3:  {key: OSC2_FINE,     label: "FINE",    sec: OSC2,    kind: table,   cc: 26, unit: "cents"}
+  4:  {key: OSC2_TRACK,    label: "TRACK",   sec: OSC2,    kind: switch,  cc: 27}
+  5:  {key: OSC_MIX,       label: "MIX",     sec: OSCC,    kind: num,     cc: 28}
+  6:  {key: OSC2_SYNC,     label: "SYNC",    sec: OSCC,    kind: switch,  cc: 30}
+  7:  {key: OSC2_RING,     label: "RING",    sec: OSCC,    kind: switch,  cc: 31}
+  8:  {key: OSC_PW,        label: "P/W",     sec: OSCC,    kind: num,     cc: 29}
+  9:  {key: KEY_SHIFT,     label: "KEYSHFT", sec: OSCC,    kind: signed,  cc: 33}
+  10: {key: MENV_ON,       label: "M.ENV",   sec: MENV,    kind: switch,  cc: 35}
+  11: {key: MENV_AMOUNT,   label: "AMOUNT",  sec: MENV,    kind: signed,  cc: 40}
+  12: {key: MENV_A,        label: "ATTACK",  sec: MENV,    kind: num,     cc: 37}
+  13: {key: MENV_D,        label: "DECAY",   sec: MENV,    kind: num,     cc: 39}
+  14: {key: FLT_TYPE,      label: "TYPE",    sec: FILT,    kind: enum,    cc: 49, choices: [LP12, LP24, HP12, BP12, LPDL]}
+  15: {key: FENV_A,        label: "ATTACK",  sec: FENV,    kind: num,     cc: 41}
+  16: {key: FENV_D,        label: "DECAY",   sec: FENV,    kind: num,     cc: 42}
+  17: {key: FENV_S,        label: "SUSTAIN", sec: FENV,    kind: num,     cc: 43}
+  18: {key: FENV_R,        label: "RELEASE", sec: FENV,    kind: num,     cc: 44}
+  19: {key: FLT_FREQ,      label: "FREQ",    sec: FILT,    kind: num,     cc: 50}
+  20: {key: FLT_RES,       label: "RES",     sec: FILT,    kind: num,     cc: 51}
+  21: {key: FLT_AMOUNT,    label: "AMOUNT",  sec: FILT,    kind: signed,  cc: 52}
+  22: {key: FLT_TRACK,     label: "KBDTRK",  sec: FILT,    kind: num,     cc: 53}
+  23: {key: FLT_SAT,       label: "SAT",     sec: FILT,    kind: num,     cc: 54}
+  24: {key: FLT_VELSW,     label: "VEL SW",  sec: FILT,    kind: switch,  cc: 55}
+  25: {key: AENV_A,        label: "ATTACK",  sec: AENV,    kind: num,     cc: 45}
+  26: {key: AENV_D,        label: "DECAY",   sec: AENV,    kind: num,     cc: 46}
+  27: {key: AENV_S,        label: "SUSTAIN", sec: AENV,    kind: num,     cc: 47}
+  28: {key: AENV_R,        label: "RELEASE", sec: AENV,    kind: num,     cc: 48}
+  29: {key: AMP_GAIN,      label: "GAIN",    sec: AMP,     kind: num,     cc: 56}
+  30: {key: AMP_VEL,       label: "VEL",     sec: AMP,     kind: num,     cc: 57}
+  31: {key: ARP_TYPE,      label: "TYPE",    sec: ARP,     kind: enum,    cc: 106, choices: [UP&DOWN, UP, DOWN, RANDOM]}
+  32: {key: ARP_RANGE,     label: "RANGE",   sec: ARP,     kind: enum,    cc: 107, choices: [1OCT, 2OCT, 3OCT, 4OCT]}
+  33: {key: ARP_BEAT,      label: "BEAT",    sec: ARP,     kind: table,   cc: 108, unit: "note value"}
+  34: {key: ARP_GATE,      label: "GATE",    sec: ARP,     kind: num,     cc: 109}
+  35: {key: DLY_TIME,      label: "TIME",    sec: DELAY,   kind: table,   cc: 77, unit: "note value"}
+  36: {key: DLY_FBK,       label: "FEEDBK",  sec: DELAY,   kind: num,     cc: 78}
+  37: {key: DLY_DRYWET,    label: "DRY/WET", sec: DELAY,   kind: num,     cc: 79}
+  38: {key: PLAY_MODE,     label: "MODE",    sec: VOICE,   kind: enum,    cc: 88, choices: [POLY, MONO, LEGATO]}
+  39: {key: PORTA_TIME,    label: "PORTA",   sec: VOICE,   kind: num,     cc: 89}
+  40: {key: BEND_RANGE,    label: "BEND",    sec: CTRL,    kind: num,     cc: 104}
+  41: {key: LFO1_DEST,     label: "DEST",    sec: LFO1,    kind: enum,    cc: 5, choices: [OSC2, OSC1+2, FILTER, AMP, P/W, FM, PAN]}
+  42: {key: LFO1_TYPE,     label: "WAVE",    sec: LFO1,    kind: enum,    cc: 2, choices: [SAW, TRI, SQUARE, S&H, SMOOTH, SINE]}
+  43: {key: LFO1_SPEED,    label: "SPEED",   sec: LFO1,    kind: table,   cc: 3, unit: "Hz / note value"}
+  44: {key: LFO1_DEPTH,    label: "DEPTH",   sec: LFO1,    kind: num,     cc: 4}
+  45: {key: OSC1_FM,       label: "FM",      sec: OSC1,    kind: num,     cc: 19}
+  46: {key: LFO2_DEST,     label: "DEST",    sec: LFO2,    kind: enum,    cc: 13, choices: [OSC2, OSC1+2, FILTER, AMP, P/W, FM, PAN]}
+  47: {key: LFO2_TYPE,     label: "WAVE",    sec: LFO2,    kind: enum,    cc: 10, choices: [SAW, TRI, SQUARE, S&H, SMOOTH, SINE]}
+  48: {key: LFO2_SPEED,    label: "SPEED",   sec: LFO2,    kind: table,   cc: 11, unit: "Hz / note value"}
+  49: {key: LFO2_DEPTH,    label: "DEPTH",   sec: LFO2,    kind: num,     cc: 12}
+  50: {key: CTRL_SENS1,    label: "SENS 1",  sec: CTRL,    kind: signed,  cc: 103}
+  51: {key: CTRL_SENS2,    label: "SENS 2",  sec: CTRL,    kind: signed,  cc: 105}
+  52: {key: CHO_TIME,      label: "TIME",    sec: CHORUS,  kind: num,     cc: 83}
+  53: {key: CHO_DEPTH,     label: "DEPTH",   sec: CHORUS,  kind: num,     cc: 84}
+  54: {key: CHO_RATE,      label: "RATE",    sec: CHORUS,  kind: num,     cc: 85}
+  55: {key: CHO_FBK,       label: "FEEDBK",  sec: CHORUS,  kind: signed,  cc: 86}
+  56: {key: CHO_LEVEL,     label: "LEVEL",   sec: CHORUS,  kind: num,     cc: 87}
+  57: {key: LFO1_ON,       label: "LFO 1",   sec: LFO1,    kind: switch,  cc: 7}
+  58: {key: LFO2_ON,       label: "LFO 2",   sec: LFO2,    kind: switch,  cc: 14}
+  59: {key: ARP_ON,        label: "ARP",     sec: ARP,     kind: switch,  cc: 110}
+  60: {key: EQ_TONE,       label: "TONE",    sec: EQ,      kind: signed,  cc: 72}
+  61: {key: EQ_FREQ,       label: "FREQ",    sec: EQ,      kind: num,     cc: 73}
+  62: {key: EQ_LEVEL,      label: "LEVEL",   sec: EQ,      kind: signed,  cc: 74}
+  63: {key: EQ_Q,          label: "Q",       sec: EQ,      kind: num,     cc: 75}
+  64: {key: CHO_TYPE,      label: "TYPE",    sec: CHORUS,  kind: enum,    cc: 82, choices: [1PH, 2PH, 3PH, 4PH]}
+  65: {key: DLY_ON,        label: "DELAY",   sec: DELAY,   kind: switch,  cc: 60}
+  66: {key: CHO_ON,        label: "CHORUS",  sec: CHORUS,  kind: switch,  cc: 61}
+  67: {key: LFO1_TEMPO,    label: "TEMPO",   sec: LFO1,    kind: switch,  cc: 8}
+  68: {key: LFO1_KEYSYNC,  label: "KEYSYNC", sec: LFO1,    kind: switch,  cc: 9}
+  69: {key: LFO2_TEMPO,    label: "TEMPO",   sec: LFO2,    kind: switch,  cc: 15}
+  70: {key: LFO2_KEYSYNC,  label: "KEYSYNC", sec: LFO2,    kind: switch,  cc: 16}
+  71: {key: MENV_DEST,     label: "M.DEST",  sec: MENV,    kind: enum,    cc: 36, choices: [OSC2, FM, P/W]}
+  72: {key: OSC_TUNE,      label: "TUNE",    sec: OSCC,    kind: table,   cc: 34, unit: "cents"}
+  73: {key: UNI_ON,        label: "UNISON",  sec: UNISON,  kind: switch,  cc: 91}
+  74: {key: PORTA_AUTO,    label: "AUTO",    sec: VOICE,   kind: switch,  cc: 90}
+  75: {key: UNI_DETUNE,    label: "DETUNE",  sec: UNISON,  kind: num,     cc: 93}
+  76: {key: OSC1_DETUNE,   label: "DETUNE",  sec: OSC1,    kind: num,     cc: 18}
+  77: {key: FX_ON,         label: "EFFECT",  sec: FX,      kind: switch,  cc: 59}
+  78: {key: FX_TYPE,       label: "TYPE",    sec: FX,      kind: enum,    cc: 62, choices: [AD1, AD2, DD, DECI, RM, COMP, PH1, PH2, PH3, PH4]}
+  79: {key: FX_CTRL1,      label: "CTRL 1",  sec: FX,      kind: num,     cc: 63}
+  80: {key: FX_CTRL2,      label: "CTRL 2",  sec: FX,      kind: num,     cc: 70}
+  81: {key: FX_LEVEL,      label: "LEVEL",   sec: FX,      kind: num,     cc: 71}
+  82: {key: DLY_TYPE,      label: "TYPE",    sec: DELAY,   kind: enum,    cc: 76, choices: [ST, X, PP]}
+  83: {key: DLY_SPREAD,    label: "SPREAD",  sec: DELAY,   kind: signed,  cc: 80}
+  84: {key: UNI_PAN,       label: "SPREAD",  sec: UNISON,  kind: signed,  cc: 94}
+  85: {key: UNI_PITCH,     label: "PITCH",   sec: UNISON,  kind: signed,  cc: 95}
+  86: {key: CTRL_SRC1,     label: "SRC 1",   sec: CTRL,    kind: src,     cc: ~}
+  87: {key: CTRL_DST1,     label: "ASSIGN1", sec: CTRL,    kind: dst,     cc: ~}
+  88: {key: CTRL_SRC2,     label: "SRC 2",   sec: CTRL,    kind: src,     cc: ~}
+  89: {key: CTRL_DST2,     label: "ASSIGN2", sec: CTRL,    kind: dst,     cc: ~}
+  90: {key: PAN,           label: "PAN",     sec: AMP,     kind: signed,  cc: 58}
+  91: {key: OSC_PHASE,     label: "PHASE",   sec: OSC1,    kind: num,     cc: 20}
+  92: {key: UNI_PHASE,     label: "PHASE",   sec: UNISON,  kind: num,     cc: 102}
+  93: {key: UNI_VOICES,    label: "VOICES",  sec: UNISON,  kind: num,     cc: 92}
+  94: {key: POLY,          label: "POLY",    sec: VOICE,   kind: num,     cc: ~}
+  95: {key: SUB_GAIN,      label: "GAIN",    sec: SUB,     kind: num,     cc: 21}
+  96: {key: SUB_SHAPE,     label: "SHAPE",   sec: SUB,     kind: enum,    cc: 22, choices: [SINE, TRI, SAW, SQUARE]}
+  97: {key: SUB_OCT,       label: "OCTAVE",  sec: SUB,     kind: enum,    cc: 23, choices: [0, -1]}
+  98: {key: DLY_TONE,      label: "TONE",    sec: DELAY,   kind: signed,  cc: 81}
+pages:
+  - {btn: LFO,  title: "LFO 1",      knobs: [42, 43, 44, 41]}
+  - {btn: LFO,  title: "LFO 1",      knobs: [57, 67, 68, ~]}
+  - {btn: LFO,  title: "LFO 2",      knobs: [47, 48, 49, 46]}
+  - {btn: LFO,  title: "LFO 2",      knobs: [58, 69, 70, ~]}
+  - {btn: EDIT, title: "OSC 1",      knobs: [0, 76, 45, 91]}
+  - {btn: EDIT, title: "SUB OSC",    knobs: [95, 96, 97, ~]}
+  - {btn: EDIT, title: "OSC 2",      knobs: [1, 2, 3, 4]}
+  - {btn: EDIT, title: "OSC MIX",    knobs: [5, 8, 6, 7]}
+  - {btn: EDIT, title: "OSC COMMON", knobs: [9, 72, 10, 71]}
+  - {btn: ENV,  title: "MOD ENV",    knobs: [12, 13, 11, ~]}
+  - {btn: ENV,  title: "FILTER ENV", knobs: [15, 16, 17, 18]}
+  - {btn: ENV,  title: "AMP ENV",    knobs: [25, 26, 27, 28]}
+  - {btn: SEL,  title: "FILTER",     knobs: [14, 19, 20, 21]}
+  - {btn: SEL,  title: "FILTER",     knobs: [22, 23, 24, ~]}
+  - {btn: SEL,  title: "AMP",        knobs: [29, 30, 90, ~]}
+  - {btn: FX,   title: "FX SWITCH",  knobs: [77, 65, 66, ~]}
+  - {btn: FX,   title: "EFFECT",     knobs: [78, 79, 80, 81]}
+  - {btn: FX,   title: "EQ",         knobs: [60, 61, 62, 63]}
+  - {btn: FX,   title: "DELAY",      knobs: [82, 35, 36, 37]}
+  - {btn: FX,   title: "DELAY",      knobs: [83, 98, ~, ~]}
+  - {btn: FX,   title: "CHORUS",     knobs: [64, 52, 53, 54]}
+  - {btn: FX,   title: "CHORUS",     knobs: [55, 56, ~, ~]}
+  - {btn: GLO,  title: "VOICE",      knobs: [38, 94, 39, 74]}
+  - {btn: GLO,  title: "UNISON",     knobs: [73, 93, 75, 84]}
+  - {btn: GLO,  title: "UNISON",     knobs: [85, 92, ~, ~]}
+  - {btn: GLO,  title: "CONTROL",    knobs: [86, 87, 50, 40]}
+  - {btn: GLO,  title: "CONTROL",    knobs: [88, 89, 51, ~]}
+  - {btn: ARP,  title: "ARP",        knobs: [31, 32, 33, 34]}
+fx_knobs:
+  AD1:  [AMOUNT, LPF, LEVEL]
+  AD2:  [AMOUNT, LPF, LEVEL]
+  DD:   [AMOUNT, LPF, LEVEL]
+  DECI: [RATE, BITS, MIX]
+  RM:   [FREQ, "-", MIX]
+  COMP: [DEPTH, ATTACK, LEVEL]
+  PH1:  [DEPTH, RATE, FEEDBK]
+  PH2:  [DEPTH, RATE, FEEDBK]
+  PH3:  [DEPTH, RATE, FEEDBK]
+  PH4:  [DEPTH, RATE, FEEDBK]
