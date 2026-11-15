@@ -40,6 +40,7 @@ fi
 # pretend FM-1. Needs Node; the adapter test needs Synth2's sources (its data comes from tools/sy1.py)
 if command -v node >/dev/null 2>&1; then
     node third_party/fm1-kit/library/test/model_test.js
+    node sim/link-test.mjs                    # the simulator's Link FM-1 (sim/link.js) with pretend devices
     if [ -n "$S2" ]; then
         python3 tools/gen_library_page.py --data "$OUT/library_data.json" >/dev/null
         node tests/library_test.js "$OUT/library_data.json"

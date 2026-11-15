@@ -6,10 +6,10 @@
 <title>M-Vsynth2 simulator</title>
 <!-- The FM-1 running M-Vsynth2 in the browser: the firmware itself (firmware/src/mvsynth2.c), built to WebAssembly by
      sim/build.sh with sim/vs_websim.c as its platform. The look is fm1-kit's (theme.css, sim.css: the same in every
-     firmware's simulator). ?v=20261114224758: build.sh stamps the build, so no stale cached script. -->
-<link rel="stylesheet" href="theme.css?v=20261114224758">
-<link rel="stylesheet" href="sim.css?v=20261114224758">
-<script src="theme.js?v=20261114224758"></script>
+     firmware's simulator). ?v=20261115135658: build.sh stamps the build, so no stale cached script. -->
+<link rel="stylesheet" href="theme.css?v=20261115135658">
+<link rel="stylesheet" href="sim.css?v=20261115135658">
+<script src="theme.js?v=20261115135658"></script>
 
 <header class="kit-top">
   <span class="badge">SIMULATOR</span>
@@ -23,6 +23,8 @@
 <div class="page">
 <div class="topbar">
   <button id="start" class="primary">&#9654; Start audio</button>
+  <label class="link off" id="linkBox" title="the sim and an FM-1 running M-Vsynth2 (on USB) keep the same sound, both ways">
+    <input type="checkbox" id="link" disabled> Link FM-1</label>
   <span id="mode" class="mode">Emulator</span>
 </div>
 
@@ -68,9 +70,11 @@
 <p class="help"><kbd>Z</kbd>&ndash;<kbd>/</kbd> play the keys &nbsp;·&nbsp; turn a knob: drag, scroll, or focus it and use
   <kbd>&uarr;</kbd><kbd>&darr;</kbd> &nbsp;·&nbsp; <kbd>[</kbd> <kbd>]</kbd> octave &nbsp;·&nbsp; a MIDI keyboard plays it too
   &nbsp;·&nbsp; click &#9654; Start audio first. Nothing is saved when the page closes: keep patches in the
-  <a href="../library.html">patch library</a>.</p>
+  <a href="../library.html">patch library</a>.<br>
+  Link FM-1 (an FM-1 running M-Vsynth2 on USB, Chrome or Edge): the sim and the FM-1 keep the same sound both ways;
+  you hear the FM-1, the keys play it, PRESETS changes its program. SAVE on the FM-1 keeps a sound.</p>
 </div>
 
-<script src="mvsynth2.js?v=20261114224758"></script>
-<script type="module" src="sim.js?v=20261114224758"></script>
+<script src="mvsynth2.js?v=20261115135658"></script>
+<script type="module" src="sim.js?v=20261115135658"></script>
 </html>

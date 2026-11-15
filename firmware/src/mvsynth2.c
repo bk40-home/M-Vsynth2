@@ -350,8 +350,13 @@ static void app_main(void)
         if (!(clk_t && fm1_ms - clk_t < 1000u)) eng.bpm_q8 = (uint32_t)set.tempo << 8;   /* no clock: GLOBAL's tempo */
         {   /* the transfer's answers, one a pass */
             static uint8_t msg[VS_XF_MSG_MAX];
-            const uint32_t n = vs_xfer_next(&xfer, &prog, msg, sizeof msg);
+            uint32_t n = vs_xfer_next(&xfer, &prog, msg, sizeof msg);
             if (n && sysex_send(msg, n)) xfer.rd_n = 0;   /* the computer stopped reading */
+            if (!n) {                           /* nothing else to send: the link's report (the simulator's Link FM-1) */
+                n = vs_xfer_link(&xfer, &eng.patch, xfer.play_due || eng.load_req || slot_want != slot || want_reload,
+                                 fm1_ms, msg, sizeof msg);
+                if (n && sysex_send(msg, n)) xfer.link_t = 0;   /* the computer stopped reading: unlinked */
+            }
             if (n) xfer_t = fm1_ms ? fm1_ms : 1u;
         }
         /* flash, only when nothing has sounded for 0.5 s (an erase holds the interrupts off) */

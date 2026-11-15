@@ -82,6 +82,7 @@ int vs_xfer_rx(vs_xfer_t *x, vs_prog_t *g, const uint8_t *body, uint32_t n, int 
         vs_xfer_unpack7(d, VS_XF_REC7, r.b);
         if (vs_patch_unpack(&r, &x->play)) { ack(x, cmd, 0, 0, VS_XF_BADMSG); break; }
         x->play_due = 1;
+        if (x->link_t) vs_patch_pack(&x->play, &x->link_has);   /* linked: the page has it (no echo) */
         ack(x, cmd, 0, 0, VS_XF_OK);
         break;
     case VS_XF_READ:
@@ -95,6 +96,10 @@ int vs_xfer_rx(vs_xfer_t *x, vs_prog_t *g, const uint8_t *body, uint32_t n, int 
         break;
     case VS_XF_IDENT:
         x->ident_due = 1;
+        break;
+    case VS_XF_LINK:
+        if (len != 0u) { ack(x, cmd, 0, 0, VS_XF_BADMSG); break; }
+        x->link_req = 1;                        /* (vs_xfer_link: the dump, and the link opened or renewed) */
         break;
     case VS_XF_SELECT:
         if (len != 2u || bb > VS_NBANK || ss >= VS_NPROG) { ack(x, cmd, bb, ss, VS_XF_BADMSG); break; }
@@ -142,4 +147,30 @@ uint32_t vs_xfer_next(vs_xfer_t *x, vs_prog_t *g, uint8_t *out, uint32_t cap)
     } else x->rd_n = 0;                         /* (the bank changed under the read: it ends) */
     if (n) x->tx_n++;
     return n;
+}
+
+uint32_t vs_xfer_link(vs_xfer_t *x, const vs_patch_t *now, int busy, uint32_t ms, uint8_t *out, uint32_t cap)
+{
+    vs_rec_t r;
+    uint32_t i;
+    if (cap < VS_XF_MSG_MAX || busy) return 0;
+    if (x->link_req) {                          /* LINK: the dump, whatever the page has */
+        x->link_req = 0;
+        x->link_t = ms | 1u;                    /* (never 0: 0 is "not linked") */
+    } else {
+        if (!x->link_t) return 0;
+        if (ms - x->link_t >= VS_XF_LINK_HOLD) { x->link_t = 0; return 0; }   /* the page went quiet: unlinked */
+        if (ms - x->link_tx < VS_XF_LINK_GAP) return 0;
+        vs_patch_pack(now, &r);
+        for (i = 0; i < VS_REC && r.b[i] == x->link_has.b[i]; i++) {}
+        if (i == VS_REC) return 0;              /* the page has it */
+    }
+    vs_patch_pack(now, &x->link_has);
+    {
+        uint8_t d[VS_XF_REC7];
+        vs_xfer_pack7(x->link_has.b, VS_REC, d);
+        x->link_tx = ms;
+        x->tx_n++;
+        return frame(out, VS_XF_EDIT, d, VS_XF_REC7);
+    }
 }

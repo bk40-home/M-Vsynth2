@@ -6,7 +6,8 @@
  *
  * Checks: the app boots and draws (the screen is not one colour); a key held sounds (the audio is not silent) and the
  * key let go falls quiet; an encoder and a button reach the app (the screen changes); IDENT through wsim_sysex_in is
- * answered with an IDENT naming M-VSYNTH2 (the patch library's handshake, vs_xfer.h). */
+ * answered with an IDENT naming M-VSYNTH2 (the patch library's handshake, vs_xfer.h); LINK is answered with an EDIT,
+ * and a knob turned is reported (the simulator's Link FM-1). */
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -26,7 +27,13 @@ static float abuf[2048 * 2];
 static uint16_t shot[240 * 240];
 
 void wsim_midi_out(int st, int d1, int d2) { (void)st; (void)d1; (void)d2; }
-void wsim_sysex_out(const uint8_t *p, int n) { if (n >= 6 && p[4] == 0x15 && n <= 64) { memcpy(ident, p, (size_t)n); ident_n = n; } }
+static uint8_t edit[2][160];
+static int edit_n;
+void wsim_sysex_out(const uint8_t *p, int n)
+{
+    if (n >= 6 && p[4] == 0x15 && n <= 64) { memcpy(ident, p, (size_t)n); ident_n = n; }
+    if (n == 145 && p[4] == 0x17) { memcpy(edit[edit_n & 1], p, 145); edit_n++; }   /* an EDIT (the link) */
+}
 static void ok(int c, const char *what) { checks++; if (!c) { fails++; printf("FAIL %s\n", what); } else printf("ok   %s\n", what); }
 static float peak(void)                     /* drain the ring as the page does: the loudest sample */
 {
@@ -65,6 +72,12 @@ void wsim_test_yield(void)
         { static const uint8_t m[] = {0xF0, 0x7D, 0x4D, 0x56, 0x05, 0x7B, 0xF7}; wsim_sysex_in(m, (int)sizeof m); } return; }
     if (steps == 1060) {
         ok(ident_n > 14 && memcmp(ident + 5, "M-VSYNTH2", 9) == 0, "IDENT is answered (the patch library's handshake)");
+        { static const uint8_t m[] = {0xF0, 0x7D, 0x4D, 0x56, 0x07, 0x79, 0xF7}; wsim_sysex_in(m, (int)sizeof m); }   /* LINK */
+        return;
+    }
+    if (steps == 1100) { ok(edit_n == 1, "LINK is answered with one EDIT (what plays)"); wsim_enc(2, 4); return; }
+    if (steps == 1160) {
+        ok(edit_n == 2 && memcmp(edit[0], edit[1], 145) != 0, "a knob turned while linked: one EDIT with the change");
         printf("%u checks, %u failed\n", checks, fails);
         exit(fails ? 1 : 0);
     }

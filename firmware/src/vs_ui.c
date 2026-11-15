@@ -918,29 +918,29 @@ static void g_arp(void)
 /* HOME: the program, the play mode, the scope */
 
 
+static int16_t scope_shown[UI_SCOPE_N];         /* the capture drawn: copied whole once the ISR has finished it */
 static void g_home(void)
 {
     char s[24], *p;
     int32_t x, pk = 1;
     const uint16_t pc = ui_patch_colour(eng.patch.color);
     rrect(PX0 - 4, PY0 - 6, 8, 8, 2, pc);
-    txt_fit(PX0 + 8, PY0 - 10, 150, &FONT_BIG, prog_name[0] ? prog_name : "-", edited ? T.warn : T.text, 0);
+    /* the name has the row to itself: the play mode, unison, the arp and the octave are on their pages and the
+       LEDs (Kris 15 Nov: the chips overlapped long names) */
+    txt_fit(PX0 + 8, PY0 - 10, PW - 8, &FONT_BIG, prog_name[0] ? prog_name : "-", edited ? T.warn : T.text, 0);
     p = put_s(s, vs_prog_bank_name(prog.bank)); p = put_s(p, "  /  "); p = put_3(p, slot + 1u); *p = 0;
     txt(PX0 + 8, PY0 + 16, &FONT_LAB, s, T.dim);
     if (edited) txt(PX0 + 8 + text_w(&FONT_LAB, s) + 8, PY0 + 16, &FONT_LAB, "EDITED", T.warn);
-    ptext(VS_P_PLAY_MODE, s, sizeof s);
-    if (P(VS_P_PLAY_MODE) == 0) { p = put_s(s, "POLY "); p = put_u(p, (uint32_t)(P(VS_P_POLY) < (int32_t)eng.nv ? P(VS_P_POLY) : (int32_t)eng.nv)); *p = 0; }
-    x = chip(PX0 + PW, PY0 - 6, s, T.theme, 2);
-    if (P(VS_P_UNI_ON)) chip(PX0 + PW - x - 4, PY0 - 6, "UNISON", T.theme, 2);
-    x = chip(PX0 + PW, PY0 + 12, P(VS_P_ARP_ON) ? "ARP ON" : "ARP OFF", P(VS_P_ARP_ON) ? T.theme : T.dim, 2);
-    if (set.oct) { p = put_s(s, "OCT "); *p++ = set.oct < 0 ? '-' : '+'; p = put_u(p, (uint32_t)(set.oct < 0 ? -set.oct : set.oct)); *p = 0; chip(PX0 + PW - x - 4, PY0 + 12, s, T.accent, 2); }
     rrect(4, PY0 + 34, 232, PY1 + 6 - (PY0 + 34), 4, T.raised);
     {
         const int32_t mid = PY0 + 34 + (PY1 + 6 - (PY0 + 34)) / 2, amp = 22;
         fill(PX0, mid, PW, 1, T.line);
-        for (x = 0; x < PW; x++) { const int32_t v = scope[x] < 0 ? -scope[x] : scope[x]; if (v > pk) pk = v; }
+        for (x = 0; x < PW; x++) { const int32_t v = scope_shown[x] < 0 ? -scope_shown[x] : scope_shown[x]; if (v > pk) pk = v; }
         if (pk < 2048) pk = 2048;                 /* a gain up to x16, so a quiet patch still shows its shape */
-        for (x = 0; x < PW; x++) yv[x] = (int16_t)(mid * 16 - scope[x] * amp * 16 / pk);
+        for (x = 0; x < PW; x++) {                /* (held inside the box: amp at most, whatever the gain) */
+            const int32_t y = scope_shown[x] * amp * 16 / pk;
+            yv[x] = (int16_t)(mid * 16 - (y > amp * 16 ? amp * 16 : y < -amp * 16 ? -amp * 16 : y));
+        }
         curve(yv, PW, PX0, 24, T.theme, 0);
     }
 }
@@ -1137,12 +1137,17 @@ static void ui_draw_home(void)
     key = hsh(key, (uint32_t)eng.nv << 8 ^ (uint32_t)(set.oct + 4));
     if (eng.act || scope_pk >= 64u) quiet = fm1_ms;   /* a voice, or a tail still heard (the delay's echoes) */
     if (fm1_ms - quiet < 300u) {                /* sounding: the scope, 12 frames a second */
-        if (!scope_req) scope_req = 1;
+        if (!scope_req) {                       /* the ISR has finished a capture: take it whole, then ask again (the
+                                                   drawing never reads a capture half overwritten) */
+            uint32_t i;
+            for (i = 0; i < UI_SCOPE_N; i++) scope_shown[i] = scope[i];
+            scope_req = 1;
+        }
         key = hsh(key, scope_seq);
         flat = 0;
     } else if (!flat) {                         /* silent: the line goes flat (not the last wave held) */
         uint32_t i;
-        for (i = 0; i < UI_SCOPE_N; i++) scope[i] = 0;
+        for (i = 0; i < UI_SCOPE_N; i++) scope_shown[i] = 0;
         scope_pk = 0;
         flat = 1;
         key = hsh(key, 0xF1A7u);

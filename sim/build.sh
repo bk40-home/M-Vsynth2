@@ -3,7 +3,7 @@
 # Build the M-Vsynth2 online simulator (WebAssembly): the firmware itself with sim/mv_websim.c as its platform.
 # Needs Emscripten (emcc) on PATH: on Windows, in WSL (Ubuntu), or let GitHub build it (.github/workflows/pages.yml).
 #   sh sim/build.sh
-# Output: docs/sim/ (mvsynth2.js, mvsynth2.wasm, index.html, sim.js, audio-worklet.js, the kit's theme.css, theme.js,
+# Output: docs/sim/ (mvsynth2.js, mvsynth2.wasm, index.html, sim.js, link.js, audio-worklet.js, the kit's theme.css, theme.js,
 # sim.css). Serve docs/ and open it in Chrome or Edge:
 #   python3 -m http.server --directory docs 8000    # then http://localhost:8000/sim/
 # The same platform tested without emcc: sh tests/run_websim.sh
@@ -13,7 +13,7 @@ command -v emcc >/dev/null || { echo "emcc not found: install Emscripten (emsdk)
 OUT=docs/sim
 KIT=third_party/fm1-kit/web
 mkdir -p "$OUT"
-cp sim/index.html sim/sim.js sim/audio-worklet.js "$KIT/theme.css" "$KIT/theme.js" "$KIT/sim.css" "$OUT"/
+cp sim/index.html sim/sim.js sim/link.js sim/audio-worklet.js "$KIT/theme.css" "$KIT/theme.js" "$KIT/sim.css" "$OUT"/
 BUILD=$(date +%Y%m%d%H%M%S)                            # the build stamp: ?v=<stamp>, so no stale cached script survives
 sed -i "s/__BUILD__/$BUILD/g" "$OUT/index.html" "$OUT/sim.js"
 emcc -O2 -DDINGHY_WEBSIM -DAPP_VER='"sim"' \

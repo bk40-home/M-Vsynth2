@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The transfer (firmware/src/vs_xfer.h) and the banks (vs_prog.h) on this computer: a write acknowledged and read
- * back, a bad sum refused, FACTORY refused, a whole bank round trip, the 7-bit packing, an audition, a busy bank. */
+ * back, a bad sum refused, FACTORY refused, a whole bank round trip, the 7-bit packing, an audition, a busy bank, the
+ * link (LINK, EDIT reports, no echo of a PLAY, the lapse). */
 #include <stdio.h>
 #include <string.h>
 #include "../firmware/src/vs_patch.c"
@@ -95,6 +96,49 @@ int main(void)
     d[0] = 2; d[1] = 5; vs_xfer_rx(&x, &g, body, msg(body, VS_XF_CLEAR, d, 2), 1); n = next(&x, &g, out);
     EXPECT(out[8] == VS_XF_OK && vs_prog_empty(&g, 5), "CLEAR empties the slot");
     EXPECT(vs_prog_next(&g, 5, 1) == 5 && vs_prog_flush(&g) == 0, "an empty bank: PRESETS stays; flush writes");
+
+    {   /* the link (07, EDIT 17): the simulator's Link FM-1 */
+        vs_patch_t now, pagep;
+        vs_rec_t got;
+        uint32_t ms = 1000;
+        vs_patch_init(&now); memcpy(now.name, "LINKED          ", 16);
+        vs_xfer_init(&x);
+        EXPECT(vs_xfer_link(&x, &now, 0, ms, out, sizeof out) == 0, "not linked: no report");
+        vs_xfer_rx(&x, &g, body, msg(body, VS_XF_LINK, d, 0), 1);
+        EXPECT(next(&x, &g, out) == 0, "LINK: no ACK (the EDIT is the answer)");
+        EXPECT(vs_xfer_link(&x, &now, 1, ms, out, sizeof out) == 0, "a sound still landing: the dump waits");
+        n = vs_xfer_link(&x, &now, 0, ms, out, sizeof out);
+        EXPECT(n == 7u + VS_XF_REC7 && out[4] == VS_XF_EDIT, "LINK answered with EDIT (what plays)");
+        vs_xfer_unpack7(out + 5, VS_XF_REC7, got.b);
+        EXPECT(vs_patch_unpack(&got, &q) == 0 && !memcmp(q.name, "LINKED", 6), "the EDIT holds the sound playing");
+        EXPECT(vs_xfer_link(&x, &now, 0, ms += 100, out, sizeof out) == 0, "unchanged: no report");
+        now.v[VS_P_FLT_FREQ] = 99;
+        n = vs_xfer_link(&x, &now, 0, ms, out, sizeof out);
+        vs_xfer_unpack7(out + 5, VS_XF_REC7, got.b); vs_patch_unpack(&got, &q);
+        EXPECT(n && out[4] == VS_XF_EDIT && q.v[VS_P_FLT_FREQ] == 99, "a knob turned: reported once");
+        EXPECT(vs_xfer_link(&x, &now, 0, ms += 100, out, sizeof out) == 0, "and only once");
+        now.v[VS_P_FLT_FREQ] = 98;                            /* two turns close together: the gap */
+        EXPECT(vs_xfer_link(&x, &now, 0, ms, out, sizeof out) != 0, "the next turn reported");
+        now.v[VS_P_FLT_FREQ] = 97;
+        EXPECT(vs_xfer_link(&x, &now, 0, ms + 10, out, sizeof out) == 0, "a turn within the gap waits");
+        n = vs_xfer_link(&x, &now, 0, ms += 60, out, sizeof out);
+        vs_xfer_unpack7(out + 5, VS_XF_REC7, got.b); vs_patch_unpack(&got, &q);
+        EXPECT(n && q.v[VS_P_FLT_FREQ] == 97, "then the newest value goes");
+        pagep = now; pagep.v[VS_P_FLT_FREQ] = 12;            /* the page sends a sound (PLAY) */
+        vs_patch_pack(&pagep, &r); vs_xfer_pack7(r.b, VS_REC, d);
+        vs_xfer_rx(&x, &g, body, msg(body, VS_XF_PLAY, d, VS_XF_REC7), 1);
+        EXPECT(next(&x, &g, out) && out[8] == VS_XF_OK, "PLAY while linked: acknowledged");
+        EXPECT(vs_xfer_link(&x, &now, 1, ms += 100, out, sizeof out) == 0, "the old sound is not reported while the new one lands");
+        now = x.play; x.play_due = 0;                         /* (the app loads it) */
+        EXPECT(vs_xfer_link(&x, &now, 0, ms += 100, out, sizeof out) == 0, "the page's own sound is not echoed back");
+        vs_xfer_rx(&x, &g, body, msg(body, VS_XF_LINK, d, 0), 1);
+        EXPECT(vs_xfer_link(&x, &now, 0, ms += 100, out, sizeof out) && out[4] == VS_XF_EDIT, "a renewal dumps again");
+        EXPECT(vs_xfer_link(&x, &now, 0, ms += VS_XF_LINK_HOLD - 50u, out, sizeof out) == 0 && x.link_t, "linked until the hold");
+        now.v[VS_P_FLT_FREQ] = 50;
+        EXPECT(vs_xfer_link(&x, &now, 0, ms += 100, out, sizeof out) == 0 && !x.link_t, "no renewal: the link lapses, nothing sent");
+        d[0] = 1; vs_xfer_rx(&x, &g, body, msg(body, VS_XF_LINK, d, 1), 1);
+        EXPECT(next(&x, &g, out) && out[8] == VS_XF_BADMSG, "a LINK with data is refused");
+    }
 
     printf(fails ? "vs_xfer_test: %u FAILED\n" : "vs_xfer_test: ok\n", fails);
     return fails != 0;

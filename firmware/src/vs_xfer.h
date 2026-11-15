@@ -14,9 +14,14 @@
  *   04 bb ss nn    READ    nn slots from ss (nn 0: to the bank's end): one DATA each, one a main-loop pass
  *   05             IDENT   answered with IDENT
  *   06 bb ss       SELECT  the bank and the slot, as the panel would (an empty slot: the bank only). Acknowledged
+ *   07             LINK    answered with EDIT (what plays now), and from then on every change to what plays is
+ *                          reported as an EDIT (at most one each VS_XF_LINK_GAP ms) until VS_XF_LINK_HOLD ms after
+ *                          the last LINK: a page renews it. A PLAY while linked is taken as what the page has, so
+ *                          it is not reported back (the simulator's Link FM-1, sim/link.js)
  * From the FM-1:
  *   11 bb ss rec   DATA    a slot as stored (empty: the record's empty mark, rec[16] = 7F)
  *   15 text..      IDENT   "M-VSYNTH2 " the version, then 00, VS_NV, VS_NBANK
+ *   17 rec         EDIT    what plays now (the edit buffer), linked only (07)
  *   7F cmd bb ss st  ACK   st: 0 done, 1 a bad message (sum, length), 2 refused (FACTORY, a bank or slot out of
  *                          range), 3 busy (the bank in RAM has unsaved changes and something sounds: send it again)
  * A sender waits for each ACK (docs/bank.html, tools/sy1_xfer.py): nothing is lost, nothing waits longer than it
@@ -29,8 +34,10 @@
 #define VS_XF_REC7 138u                         /* a record, 7-bit packed */
 #define VS_XF_MSG_MAX (9u + VS_XF_REC7)         /* the longest message, F0 .. F7: a DATA (F0 7D 4D 56 11 bb ss rec sum F7) */
 
-enum { VS_XF_WRITE = 1, VS_XF_CLEAR, VS_XF_PLAY, VS_XF_READ, VS_XF_IDENT, VS_XF_SELECT,
-       VS_XF_DATA = 0x11, VS_XF_IDREP = 0x15, VS_XF_ACK = 0x7F };
+enum { VS_XF_WRITE = 1, VS_XF_CLEAR, VS_XF_PLAY, VS_XF_READ, VS_XF_IDENT, VS_XF_SELECT, VS_XF_LINK,
+       VS_XF_DATA = 0x11, VS_XF_IDREP = 0x15, VS_XF_EDIT = 0x17, VS_XF_ACK = 0x7F };
+#define VS_XF_LINK_HOLD 30000u                 /* ms: a link lapses this long after the last LINK (a page renews at 20 s) */
+#define VS_XF_LINK_GAP 50u                     /* ms: at most one EDIT report this often (the newest sound) */
 enum { VS_XF_OK, VS_XF_BADMSG, VS_XF_REFUSED, VS_XF_BUSY };
 
 typedef struct {
@@ -41,6 +48,9 @@ typedef struct {
     int16_t select_bank, select_slot;           /* a SELECT for the app to carry out (-1: none) */
     uint8_t play_due;                           /* an audition waiting in play */
     vs_patch_t play;
+    uint8_t link_req;                           /* a LINK came: the dump is due */
+    uint32_t link_t, link_tx;                   /* the last LINK's ms (0: not linked), the last report's */
+    vs_rec_t link_has;                          /* what the page has (the last EDIT sent, or the PLAY it sent) */
 } vs_xfer_t;
 
 void vs_xfer_init(vs_xfer_t *x);
@@ -49,6 +59,10 @@ void vs_xfer_init(vs_xfer_t *x);
 int vs_xfer_rx(vs_xfer_t *x, vs_prog_t *g, const uint8_t *body, uint32_t n, int silent);
 /* the next message to send into out (F0 .. F7): its length, 0 when none is due */
 uint32_t vs_xfer_next(vs_xfer_t *x, vs_prog_t *g, uint8_t *out, uint32_t cap);
+/* the link (07): an EDIT into out when one is due, its length, else 0. now: what plays; busy: a new sound is still
+ * landing (nothing is reported then, so an old sound never goes back to the page); ms: the clock. Call it when
+ * vs_xfer_next had nothing to send */
+uint32_t vs_xfer_link(vs_xfer_t *x, const vs_patch_t *now, int busy, uint32_t ms, uint8_t *out, uint32_t cap);
 /* the record packing, for the tests and the tools' mirror */
 void vs_xfer_pack7(const uint8_t *in, uint32_t n, uint8_t *out);     /* n bytes -> n + ceil(n / 7) */
 void vs_xfer_unpack7(const uint8_t *in, uint32_t n, uint8_t *out);   /* the inverse (n: the packed length) */
