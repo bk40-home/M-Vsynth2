@@ -54,7 +54,7 @@ jobs:
           mkdir -p /tmp/rel
           if gh release download $R --pattern 'mvsynth2-*.fwsc' --dir /tmp/rel; then
             TAG=$(gh release view $R --json tagName -q .tagName)
-            python3 tools/flash_manifest.py --version "${TAG#v}" --tag "$TAG" \
+            python3 tools/flash_manifest.py --version "${TAG#[vV]}" --tag "$TAG" \
               --url "$(gh release view $R --json url -q .url)" \
               --published "$(gh release view $R --json publishedAt -q .publishedAt)" /tmp/rel/*.fwsc
           else
