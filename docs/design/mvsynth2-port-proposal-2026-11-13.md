@@ -6,6 +6,7 @@ result is section 3.5: feasible at 8 voices, with the oscillator tables in RAM.
 > **Sign-off (Kris, 13 Nov 2026).** Option a for all 13 decisions, with one change to decision 1: the base is
 > `dinghy-bk40` (Dinghy 0.4), with M-vance's platform files laid over it (section 2.1). M-vance on the FM-1 does not
 > pass 60 % of the buffer with everything on (section 3.4). Identity `FM-1_96809N`, to be checked on the hub.
+> **Changed 15 Nov 2026:** `96809N` falls in M-vance's range; the identity is `FM-1_968100N` (dev `FM-1_9681000`), free on the hub.
 > Upstream is contacted once the port is shown to be feasible.
 
 M-Vsynth2 would be to [Synth2](https://github.com/chab/oxo_synth2) what M-vance is to the JT-8000: the same engine,
@@ -553,7 +554,7 @@ This map is ours, not Synth1's, and the cheat sheet will say so.
 - **Two things to ask upstream**, if you choose to write: that the 57 factory patches are his own to pass on under
   MIT, and whether "Synth2" inside our name is welcome. Neither blocks the work.
 - **Identity.** `APP_NAME "M-VSYNTH2"`, `STORE_MAGIC 0x3253564D` ("MVS2"), `DATA_FAMILY "MVSYN2"`, `PRODUCT`
-  `FM-1_96809N` (the next after M-vance's `96808N`; to be checked on the hub), the loader's screen in sea green
+  `FM-1_968100N` (was `96809N`, which falls in M-vance's range; 15 Nov), the loader's screen in sea green
   (`#00C8A0`), all in `tools/build.py`.
 
 ## 10. Stages

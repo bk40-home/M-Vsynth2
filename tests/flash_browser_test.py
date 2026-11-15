@@ -65,7 +65,7 @@ Object.defineProperty(navigator, 'webdriver', {get: () => false});
       if (!fin && window.__image && !eq(u.slice(14, 14 + n), [...window.__image.subarray(addr, addr + n)])) dev.bad++;
       dev.waiting = null; dev.served++;
       if (addr === 0xE0000000) setTimeout(() => boot('ota-FM-1_900', 'Felucca Update'), 300);
-      else if (addr === 0xF0000000) setTimeout(() => boot('FM-1_968090', 'Felucca'), 300);
+      else if (addr === 0xF0000000) setTimeout(() => boot('FM-1_9681000', 'Felucca'), 300);
       else next();
     }
   }
@@ -117,7 +117,7 @@ async def main():
         print("log:\n" + await page.text_content("#fx-log"))
         print("fake:", await page.evaluate("JSON.stringify({served: __fm1.served, bad: __fm1.bad, upgrades: __fm1.upgrades, log: __fm1.log})"))
         print("bar:", await page.evaluate("document.getElementById('fx-bar').value"))
-        ok = "runs FM-1_968090" in await page.text_content("#fx-msg") and \
+        ok = "runs FM-1_9681000" in await page.text_content("#fx-msg") and \
             await page.evaluate("__fm1.bad === 0 && __fm1.upgrades === 2")
 
         # wrong file: not a package

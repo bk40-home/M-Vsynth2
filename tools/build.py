@@ -55,13 +55,13 @@ SDK_SHA256 = {
 }
 
 BOARD = "fm1"                       # fm1 (default) or smk37: BOARD env or --board
-BOARD_PREFIX = {"fm1": "FM-1_96809", "smk37": "SMK-37 Pro_95"}   # identity: prefix + minor (0: a dev build)
+BOARD_PREFIX = {"fm1": "FM-1_968100", "smk37": "SMK-37 Pro_95"}   # identity: prefix + minor (0: a dev build)
 BOARD_DEFS = {"fm1": [], "smk37": ["-DBOARD_SMK37=1"]}
 MODELS = {"pro": "SMK-37 Pro", "elite": "SMK-37 Elite", "mke": "MKE-P37"}   # smk37: one keyboard, three names
 DATA_FAMILY = "MVSYN2"              # the SMK store's owner tag (store.h): 1..7 of A-Z 0-9. Your fork: your own
 SCREEN_NAME = "M-VSYNTH2"             # the update loader's screen (FM-1, ldr_screen.c): the name and its colour (RGB565)
 SCREEN_COLOUR = 0x0654              # sea green, #00C8A0
-PRODUCT = "FM-1_968090"             # M-Vsynth2: 96809N (next after M-vance's 96808N; Kris to confirm it is free on the hub)
+PRODUCT = "FM-1_9681000"            # M-Vsynth2: 968100N (96809N clashes with M-vance's range; 968100N free on the hub, 15 Nov)
                                     # Resume after a cut-off install keys on the loader (ota-FM-1_900), not this. Your fork: pick your own
 VERSION = None                      # APP_VER for release builds
 
@@ -313,7 +313,7 @@ def mmio_check():
 def main():
     global PRODUCT, VERSION, BOARD, APP_SLOT
     ap = argparse.ArgumentParser()
-    ap.add_argument("--release", metavar="X.Y", help="release build: identity FM-1_96808Y, version string X.Y")
+    ap.add_argument("--release", metavar="X.Y", help="release build: identity FM-1_968100Y, version string X.Y")
     ap.add_argument("--board", choices=sorted(BOARD_PREFIX), default=None,
                     help="target board: fm1 (default) or smk37 (default: $BOARD, else fm1)")
     ap.add_argument("--model", choices=sorted(MODELS), default=None,
