@@ -1,0 +1,12 @@
+{
+  "what": "Synth2, the open-source recreation of Synth1, on eight voices across both cores: two oscillators and a sub, five filters (LPDL among them), two LFOs, distortions and phasers, EQ, delay, chorus and Synth1's arpeggiator. It plays Synth1's .sy1 patches, with the Synth2 Factory bank built in and 1024 slots of your own.",
+  "kinds": [
+    "synth"
+  ],
+  "author": "Kris (bk40-home)",
+  "image": "docs/img/home.png",
+  "cheat": "https://bk40-home.github.io/M-Vsynth2/cheatsheet.html",
+  "play": "https://bk40-home.github.io/M-Vsynth2/sim/",
+  "editor": "https://bk40-home.github.io/M-Vsynth2/library.html",
+  "color": "#00C8A0"
+}
