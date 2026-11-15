@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="fm1-count" content="__COUNT__">
+<title>M-Vsynth2</title>
+<link rel="icon" type="image/png" href="img/home.png">
+<meta name="description" content="M-Vsynth2: open-source firmware that puts Synth2, the open-source recreation of Synth1, on the M-VAVE FM-1. Plays Synth1's .sy1 patches.">
+<!-- The M-Vsynth2 web page (GitHub Pages: .github/workflows/pages.yml publishes docs/). Hand-written, on M-vance's
+     page (the same layout, SEA's colours); the screens (img/) come from the firmware: tests/run_docs.sh. Self-contained:
+     no external files (the page counter, flash/count.js, sends one image request when the workflow fills the
+     fm1-count meta). -->
+<script src="flash/count.js"></script>
+<style>
+:root {
+  --bg: #0B0F10; --panel: #141A1C; --line: #26323A; --ink: #E8F0F0; --mute: #8FA0A6; --amber: #00C8A0; --amber-dim: #00806A;
+  --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+* { box-sizing: border-box; }
+html { background: var(--bg); }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.55 var(--sans); }
+a { color: var(--amber); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+.wrap { max-width: 1060px; margin: 0 auto; padding: 0 20px; }
+header.top { border-bottom: 1px solid var(--line); }
+header.top .wrap { display: flex; align-items: center; gap: 24px; height: 60px; }
+.mark { font: 700 20px/1 var(--mono); letter-spacing: .08em; color: var(--amber); text-decoration: none; }
+nav { margin-left: auto; display: flex; gap: 20px; flex-wrap: wrap; }
+nav a { color: var(--mute); text-decoration: none; font-size: 14px; }
+nav a:hover { color: var(--ink); }
+
+.hero { padding: 64px 0 40px; display: grid; grid-template-columns: 1.1fr .9fr; gap: 48px; align-items: center; }
+.hero h1 { font: 700 clamp(40px, 7vw, 72px)/1 var(--mono); letter-spacing: .04em; margin: 0 0 16px; color: var(--amber); }
+.hero p.lead { font-size: 20px; color: var(--ink); margin: 0 0 12px; }
+.hero p.sub { color: var(--mute); margin: 0 0 28px; }
+.cta { display: flex; gap: 12px; flex-wrap: wrap; }
+.btn { display: inline-block; padding: 11px 18px; border-radius: 8px; font-weight: 600; text-decoration: none; font-size: 15px; }
+.btn.primary { background: var(--amber); color: #0B0F10; }
+.btn.ghost { border: 1px solid var(--line); color: var(--ink); }
+.btn:hover { filter: brightness(1.08); }
+.screen { image-rendering: pixelated; width: 100%; max-width: 420px; aspect-ratio: 1; border-radius: 10px;
+  border: 10px solid #050403; box-shadow: 0 0 0 1px var(--line), 0 20px 60px rgba(0,200,160,.08); justify-self: center; }
+
+section { padding: 48px 0; border-top: 1px solid var(--line); }
+h2 { font: 700 13px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--amber); margin: 0 0 20px; }
+h3 { margin: 0 0 6px; font-size: 17px; }
+.lede { font-size: 18px; max-width: 760px; margin: 0 0 28px; }
+.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px 18px 16px; }
+.card p { margin: 0; color: var(--mute); font-size: 15px; }
+.specs { width: 100%; border-collapse: collapse; font-size: 15px; }
+.specs th { text-align: left; vertical-align: top; width: 170px; padding: 10px 16px 10px 0; color: var(--ink); font-weight: 600; border-top: 1px solid var(--line); }
+.specs td { padding: 10px 0; color: var(--mute); border-top: 1px solid var(--line); }
+.specs tr:first-child th, .specs tr:first-child td { border-top: 0; }
+.shots { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.shots figure { margin: 0; }
+.shots img { width: 100%; aspect-ratio: 1; image-rendering: pixelated; border-radius: 6px; border: 1px solid var(--line); display: block; }
+.shots figcaption { font: 12px/1.4 var(--mono); color: var(--mute); margin-top: 6px; }
+ol.steps { margin: 0; padding-left: 22px; }
+ol.steps li { margin-bottom: 10px; }
+code, pre { font-family: var(--mono); font-size: 14px; }
+code { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; }
+pre { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; overflow-x: auto; margin: 12px 0 0; }
+.note { color: var(--mute); font-size: 14px; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; }
+.two > *, .hero > *, .grid3 > * { min-width: 0; }   /* grid items may shrink (long code lines scroll instead) */
+code { overflow-wrap: anywhere; }
+footer { border-top: 1px solid var(--line); padding: 28px 0 48px; color: var(--mute); font-size: 13px; }
+footer p { margin: 0 0 8px; max-width: 860px; }
+
+@media (max-width: 820px) {
+  .hero { grid-template-columns: 1fr; padding-top: 40px; gap: 32px; }
+  .grid3, .two { grid-template-columns: 1fr; }
+  .shots { grid-template-columns: repeat(2, 1fr); }
+  .specs th { width: 120px; }
+  nav { display: none; }
+}
+</style>
+</head>
+<body>
+
+<header class="top"><div class="wrap">
+  <a class="mark" href="#">M-VSYNTH2</a>
+  <nav><a href="#engine">Engine</a><a href="#panel">Panel</a><a href="flash/">Install</a><a href="cheatsheet.html">Cheat sheet</a><a href="library.html">Library</a><a href="sim/">Simulator</a><a href="https://github.com/bk40-home/M-Vsynth2">Source</a></nav>
+</div></header>
+
+<main class="wrap">
+
+<div class="hero">
+  <div>
+    <h1>M-VSYNTH2</h1>
+    <p class="lead">Synth2, the open-source recreation of Synth1, on the M-VAVE FM-1.</p>
+    <p class="sub">Open-source firmware: Synth2's engine (Fran&ccedil;ois Chabloz's recreation of Daichi Laboratory's
+      Synth1) rewritten in fixed point for the FM-1's chip, every law taken from Synth2's measurements of the
+      original. Two oscillators and a sub, five filters, two LFOs, effects, delay, chorus and the arpeggiator, on eight
+      voices over both of the chip's cores. It plays Synth1's <code>.sy1</code> patches: the same 99 parameters, in and out.</p>
+    <div class="cta">
+      <a class="btn primary" href="flash/">Install from the browser</a>
+      <a class="btn ghost" href="https://github.com/bk40-home/M-Vsynth2/releases/latest">Download</a>
+      <a class="btn ghost" href="sim/">Play in browser</a>
+      <a class="btn ghost" href="library.html">Patch library</a>
+      <a class="btn ghost" href="cheatsheet.html">Cheat sheet</a>
+    </div>
+  </div>
+  <img class="screen" src="img/home.png" alt="The M-Vsynth2 home screen on the FM-1: the patch and its bank, a scope of what plays, the four home knobs">
+</div>
+
+<section id="about">
+  <h2>Where it comes from</h2>
+  <p class="lede">M-Vsynth2 is the FM-1 edition of <a href="https://github.com/chab/oxo_synth2">Synth2</a>. Synth2
+    recreates Synth1 from measurements of its sound alone; M-Vsynth2 carries that engine to a chip with no FPU, and
+    checks each part against Synth2's own.</p>
+  <div class="grid3">
+    <div class="card"><h3>Synth1's patches</h3><p>Open a <code>.sy1</code> file, a Synth1 bank folder or a zip of banks
+      in the patch library and drag them onto the FM-1: eight banks of 128 of your own, with the Synth2 Factory bank
+      built in.</p></div>
+    <div class="card"><h3>Checked against Synth2</h3><p>A compare tool runs the fixed-point engine next to Synth2's
+      float one, case by case: 379 cases, every factory patch among them.</p></div>
+    <div class="card"><h3>Made for a small chip</h3><p>Integers only, both cores (every other voice on the second, and
+      back to one if it fails), nothing computed that is not heard, and a limiter on the output.</p></div>
+  </div>
+</section>
+
+<section id="engine">
+  <h2>The engine</h2>
+  <table class="specs">
+    <tr><th>Voices</th><td>8, on both of the chip's cores. POLY, MONO, LEGATO; PORTAMENTO with AUTO; UNISON of 2 to 8 voices with DETUNE, SPREAD, PITCH and PHASE. A VOICES limit.</td></tr>
+    <tr><th>OSC 1</th><td>SINE, SAW, PULSE, TRIANGLE. DETUNE (eight copies around the note), FM from OSC 2, PHASE.</td></tr>
+    <tr><th>SUB</th><td>SINE, TRIANGLE, SAW, SQUARE, at the note or an octave down, locked to OSC 1.</td></tr>
+    <tr><th>OSC 2</th><td>SAW, PULSE, TRIANGLE, NOISE. PITCH &plusmn;60 semitones, FINE, keyboard TRACK, SYNC to OSC 1, RING.</td></tr>
+    <tr><th>Common</th><td>MIX, P/W, KEY SHIFT, TUNE. MOD ENV (attack, decay, amount) to OSC 2 pitch, FM or P/W.</td></tr>
+    <tr><th>Filter</th><td>LP12, LP24, HP12, BP12, LPDL. FREQ, RES, envelope AMOUNT, KBD TRACK, SATURATION, velocity switch. FILTER ENV (ADSR).</td></tr>
+    <tr><th>Amp</th><td>AMP ENV (ADSR), GAIN, velocity sensitivity, PAN.</td></tr>
+    <tr><th>LFOs</th><td>Two: saw, triangle, square, S&amp;H, smooth random, sine. To OSC 2, OSC 1+2, filter, amp, P/W, FM or pan. TEMPO sync, KEY sync.</td></tr>
+    <tr><th>Effects</th><td>EFFECT (two analog distortions, digital distortion, decimator, ring modulator, compressor, four phasers), EQ (tone and a peak), DELAY (stereo, cross, ping-pong; tempo times, spread, tone), CHORUS (four types). A limiter on the output.</td></tr>
+    <tr><th>Arpeggiator</th><td>Synth1's: UP&amp;DOWN, UP, DOWN, RANDOM; 1 to 4 octaves; BEAT; GATE. Its own tempo, or MIDI clock.</td></tr>
+    <tr><th>Programs</th><td>Banks of 128, as Synth1 has them: FACTORY and U1 to U8 in flash, 1024 patches of your own. SAVE into any slot from the panel; the patch library sends, reads and clears.</td></tr>
+    <tr><th>MIDI</th><td>USB-MIDI in and out, the TRS MIDI IN. Notes, program change, bank select, pitch bend, the patch's two controller routes, the sustain pedal, clock. Every knob receives a CC of its own.</td></tr>
+  </table>
+  <p class="note">Not as Synth2 (the chip's limits): 8 voices, not 32; delay times up to 1 s; the cutoff and the arp move
+    every 16 samples. The README has the list.</p>
+</section>
+
+<section id="panel">
+  <h2>The panel</h2>
+  <p class="lede">Synth1's sections are pages on the FM-1's screen. Tap a section button for its first page, again for
+    the next; the four knobs on screen are the four knobs under it, and above them a graph of what the page does. Six
+    themes. Everything is on the <a href="cheatsheet.html">cheat sheet</a>, made from the firmware's own page table.</p>
+  <div class="shots">
+    <figure><img src="img/osc1.png" alt="The OSC 1 page: shape, detune, FM, phase"><figcaption>EDIT &middot; OSC 1</figcaption></figure>
+    <figure><img src="img/osc2.png" alt="The OSC 2 page: shape, pitch, fine, track"><figcaption>EDIT &middot; OSC 2</figcaption></figure>
+    <figure><img src="img/filter.png" alt="The FILTER page: type, frequency, resonance, amount"><figcaption>SEL &middot; FILTER</figcaption></figure>
+    <figure><img src="img/filter-env.png" alt="The FILTER ENV page: attack, decay, sustain, release"><figcaption>ENV &middot; FILTER ENV</figcaption></figure>
+    <figure><img src="img/effect.png" alt="The EFFECT page: type, amount, LPF, level"><figcaption>FX &middot; EFFECT</figcaption></figure>
+    <figure><img src="img/delay.png" alt="The DELAY page: type, time, feedback, dry/wet"><figcaption>FX &middot; DELAY</figcaption></figure>
+    <figure><img src="img/chorus.png" alt="The CHORUS page: type, time, depth, rate"><figcaption>FX &middot; CHORUS</figcaption></figure>
+    <figure><img src="img/voice.png" alt="The VOICE page: mode, poly, portamento, auto"><figcaption>GLO &middot; VOICE</figcaption></figure>
+    <figure><img src="img/arp.png" alt="The ARP page: type, range, beat, gate"><figcaption>ARP</figcaption></figure>
+    <figure><img src="img/bank.png" alt="The bank browser: the factory bank, patch by patch"><figcaption>SEQ &middot; BANK</figcaption></figure>
+    <figure><img src="img/themes.png" alt="GLOBAL 2/2: the six themes"><figcaption>GLO &middot; GLOBAL 2/2 (themes)</figcaption></figure>
+    <figure><img src="img/home.png" alt="HOME: the patch, the scope, FREQ, RES, AMOUNT, GAIN"><figcaption>HOME</figcaption></figure>
+  </div>
+</section>
+
+<section id="install">
+  <h2>Install</h2>
+  <div class="two">
+    <div>
+      <h3>From this site</h3>
+      <p class="note">The easy way: open the <a href="flash/">firmware page</a> in Chrome or Edge on a computer, connect
+        the FM-1 by USB, find it, install the latest release (or a <code>.fwsc</code> of your own). If an install is cut
+        off, plug it back in and install again: the FM-1 stays in update mode until it is done.</p>
+      <h3>With the FM-1 Firmware Hub</h3>
+      <p class="note">Once M-Vsynth2 is listed there: open <a href="https://thefirmwarehub.com">thefirmwarehub.com</a>
+        in Chrome or Edge, connect the FM-1 by USB, pick M-Vsynth2, install. Going back to another firmware, or the
+        official one, works the same way.</p>
+      <p class="note">If it won't start: hold <b>OCT-</b> while switching on (the USB rescue: no sound, only the updater)
+        and install a working build from there. Installing firmware is at your own risk.</p>
+    </div>
+    <div>
+      <h3>From the command line</h3>
+      <ol class="steps">
+        <li>Download <code>mvsynth2-X.Y.fwsc</code> from the <a href="https://github.com/bk40-home/M-Vsynth2/releases/latest">latest release</a>.</li>
+        <li>Connect the FM-1 by USB and run, from a copy of the source:
+          <pre>python3 tools/fm1_install.py mvsynth2-X.Y.fwsc</pre></li>
+        <li>The FM-1 restarts into M-Vsynth2. The home screen says <b>M-VSYNTH2</b>.</li>
+      </ol>
+      <h3 style="margin-top:20px">Patches</h3>
+      <p class="note">The <a href="library.html">patch library</a> (Chrome or Edge): open <code>.sy1</code> files,
+        folders or zip banks, search them, drag one or many onto the FM-1's banks, send, read back.</p>
+    </div>
+  </div>
+</section>
+
+<section id="build">
+  <h2>Build it yourself</h2>
+  <p class="lede">M-Vsynth2 is built on <a href="https://github.com/zvenson/dinghy">Dinghy</a> as
+    <a href="https://github.com/bk40-home/M-vance">M-vance</a> carries it (Linux or WSL, Python 3, the JieLi toolchain).</p>
+<pre>git submodule update --init                # Synth2 (the generators and compare tools) and fm1-kit
+sh tests/run_unit.sh                       # the engine's tests
+sh tests/run_compare.sh                    # the engine against Synth2's own
+sh tests/run_docs.sh                       # this page's screens, the cheat sheet, the library and firmware pages
+./build.sh                                 # build/mvsynth2.fwsc
+python3 tools/fm1_install.py build/mvsynth2.fwsc</pre>
+</section>
+
+</main>
+
+<footer><div class="wrap">
+  <p><b>M-Vsynth2</b> by Kris (<a href="https://github.com/bk40-home">bk40-home</a>), free software under the
+    <a href="https://github.com/bk40-home/M-Vsynth2/blob/main/LICENSE">GPL-3.0</a>: you may change and share it, and
+    whoever gets it gets its source. The engine is ported from <a href="https://github.com/chab/oxo_synth2">Synth2</a>
+    by Fran&ccedil;ois Chabloz (MIT). It stands on <a href="https://github.com/zvenson/dinghy">Dinghy</a> (zvenson),
+    <a href="https://github.com/hugelton/Felucca">Felucca</a> (Leo Kuroshita, H&uuml;gelton Instruments),
+    <a href="https://github.com/isod89/sloop-fm1">SLOOP</a> (isod89) and
+    <a href="https://github.com/keremimo/melodee">Melodee</a>'s second core (Kerem Kilic, Ellic Studio). Credits in full:
+    <a href="https://github.com/bk40-home/M-Vsynth2/blob/main/LICENSING.md">LICENSING.md</a>.</p>
+  <p>Not affiliated with or endorsed by Daichi Laboratory or Oxo Music. Synth1 belongs to its owner; &ldquo;M-VAVE&rdquo;
+    and &ldquo;FM-1&rdquo; belong to theirs.</p>
+</div></footer>
+</body>
+</html>

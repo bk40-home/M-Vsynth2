@@ -14,6 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write          # the release on a tag
+      actions: write           # start the Pages workflow after the release (the firmware page)
       id-token: write          # the attestation's signing identity
       attestations: write
     steps:
@@ -76,7 +77,15 @@ jobs:
         if: github.ref_type == 'tag'
         uses: softprops/action-gh-release@v2
         with:
+          # the release builds, not the dev ones (mvsynth2-smk37.fwsc). No comment inside the block below: it would
+          # become part of the file pattern (and its comma a second pattern), and the packages would not be attached
           files: |
-            build/mvsynth2-[0-9]*.fwsc   # (the release builds, not the dev ones: mvsynth2-smk37.fwsc)
+            build/mvsynth2-[0-9]*.fwsc
             build/SHA256SUMS
           generate_release_notes: true
+
+      - name: Refresh the web pages (the firmware page offers this release)
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run pages.yml --repo "$GITHUB_REPOSITORY" --ref "${{ github.event.repository.default_branch }}"

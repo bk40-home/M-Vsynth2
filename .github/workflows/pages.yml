@@ -1,12 +1,18 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # The web pages on GitHub Pages: the simulator built here (Emscripten: no emcc needed on your computer), then docs/
-# (the simulator, the patch library, the cheat sheet) published. Settings > Pages > Source: "GitHub Actions".
-# Runs on every push to main, or by hand (Actions > pages > Run workflow).
+# (the simulator, the patch library, the cheat sheet, the firmware page) published. Settings > Pages > Source: "GitHub Actions".
+# Runs on every push to main, on a published release (release.yml starts it after a tag's release: a release made
+# with the workflow's token starts nothing by itself), or by hand (Actions > pages > Run workflow).
+# The firmware page gets the latest release's packages. The page counter: Settings > Secrets and variables > Actions >
+# Variables, GOATCOUNTER_URL = https://CODE.goatcounter.com/count to count elsewhere (unset: bk40.goatcounter.com, shared with the other
+# firmware's site: GoatCounter tells them apart by path).
 name: pages
 
 on:
   push:
     branches: [main]
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:
@@ -24,15 +30,41 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: recursive            # third_party/fm1-kit (the look, the library)
+          submodules: recursive            # third_party/fm1-kit (the look, the library, the firmware page)
+          ref: ${{ github.event.repository.default_branch }}   # (a release event would check out the tag)
 
       - uses: mymindstorm/setup-emsdk@v14
 
       - name: The simulator's platform, tested natively first
+        continue-on-error: true          # (a failed sim build keeps docs/sim as committed: the site still goes up)
         run: sh tests/run_websim.sh
 
       - name: Build the simulator (docs/sim)
+        continue-on-error: true          # (a failed sim build keeps docs/sim as committed: the site still goes up)
         run: sh sim/build.sh
+
+      - name: The firmware page (docs/flash)
+        run: sh flash/build.sh
+
+      - name: The latest release's packages for the firmware page (none yet - the page offers a file instead)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          R="--repo $GITHUB_REPOSITORY"
+          mkdir -p /tmp/rel
+          if gh release download $R --pattern 'mvsynth2-*.fwsc' --dir /tmp/rel; then
+            TAG=$(gh release view $R --json tagName -q .tagName)
+            python3 tools/flash_manifest.py --version "${TAG#v}" --tag "$TAG" \
+              --url "$(gh release view $R --json url -q .url)" \
+              --published "$(gh release view $R --json publishedAt -q .publishedAt)" /tmp/rel/*.fwsc
+          else
+            echo "no release with packages yet: docs/flash/ has no firmware/"
+          fi
+
+      - name: The page counter (bk40.goatcounter.com, or the repo variable GOATCOUNTER_URL; none - an empty one)
+        env:
+          COUNT: ${{ vars.GOATCOUNTER_URL || 'https://bk40.goatcounter.com/count' }}
+        run: grep -rl "__COUNT__" docs --include='*.html' | xargs -r sed -i "s|__COUNT__|${COUNT}|g"
 
       - uses: actions/upload-pages-artifact@v3
         with:

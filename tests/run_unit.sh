@@ -41,6 +41,7 @@ fi
 if command -v node >/dev/null 2>&1; then
     node third_party/fm1-kit/library/test/model_test.js
     node sim/link-test.mjs                    # the simulator's Link FM-1 (sim/link.js) with pretend devices
+    node third_party/fm1-kit/web/test/fm1ota_test.mjs .   # the firmware page's installer: a pretend FM-1, and as tools/fm1_install.py
     if [ -n "$S2" ]; then
         python3 tools/gen_library_page.py --data "$OUT/library_data.json" >/dev/null
         node tests/library_test.js "$OUT/library_data.json"

@@ -6,3 +6,4 @@ __pycache__/
 /_backup_*/
 /_to_delete/
 *.bak_*
+docs/flash/firmware/

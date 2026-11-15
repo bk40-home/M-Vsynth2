@@ -8,11 +8,10 @@ Daichi Laboratory): its floating-point engine rewritten in C99 fixed point for t
 law taken from Synth2's measurements of the original's sound. It plays Synth1's `.sy1` patches: the same 99
 parameters, the same values, in and out.
 
-> **Status: the port is complete on the computer; next is the check on the FM-1.** The engine (stages 4a to 4e of the
+> **Status: complete and tested on the FM-1.** The engine (stages 4a to 4e of the
 > [port proposal](docs/design/mvsynth2-port-proposal-2026-11-13.md)) plays every Synth1 parameter and is checked
 > against Synth2's own engine in 379 cases, every factory patch among them (`tests/run_compare.sh`). The panel, the
-> banks and the patch transfer (stages 5, 6) are in. What is left is the FM-1 itself: CPU with everything on, every
-> page by hand, a bank sent and read back (proposal section 10's last column).
+> banks and the patch transfer (stages 5, 6) are in, and all of it has been checked on the FM-1 itself.
 
 ## This build
 
@@ -118,8 +117,26 @@ The factory bank is a folder, `tools/bank/factory/`: `python3 tools/make_bank.py
 
 ## Install
 
-As M-vance: the FM-1 Firmware Hub once listed, or `python3 tools/fm1_install.py mvsynth2-X.Y.fwsc`. If it won't
+**From the browser: the firmware page, `docs/flash/`** (the site's *Install the firmware*; Chrome or Edge on a
+computer). Find the FM-1, take the latest release (or a `.fwsc` from your computer), tick the box, Install. It is the
+same update as `tools/fm1_install.py` (fm1-kit's `web/fm1ota.js`): the package is checked first (identity, the update
+loader, every file's CRC; a release's SHA-256 too), a package for another model is refused, and the FM-1's own update
+loader stays until the write is done, so a cut-off install is finished by running it again. On Windows close the
+patch library and any DAW first: only one program can use the FM-1's MIDI port.
+
+Otherwise: the FM-1 Firmware Hub once listed, or `python3 tools/fm1_install.py mvsynth2-X.Y.fwsc`. If it won't
 start, hold **OCT-** while switching on: the USB rescue.
+
+**The site** (GitHub Pages, `.github/workflows/pages.yml`): the front page, the firmware page, the patch library, the
+simulator, the cheat sheet. A release (`release.yml`, on a tag `vX.Y`) starts the Pages workflow, which puts that
+release's packages and `firmware/latest.json` (`tools/flash_manifest.py`) beside the firmware page.
+
+**Traffic.** Page views and installs are counted with [GoatCounter](https://www.goatcounter.com) (open source, no
+cookies, nothing personal kept) at <https://bk40.goatcounter.com>, shared with M-vance's site (told apart by path; the
+repo variable `GOATCOUNTER_URL` points this site elsewhere). Local copies never count. Besides views, the firmware page
+sends `M-Vsynth2/flash/start/<identity>`, `.../done/<identity>` and `.../fail/<reason>`: the dashboard's events show
+installs and failures by version.
+GitHub's own figures are under *Insights > Traffic* (14 days) and each release's download counts.
 
 ## Build and run
 
