@@ -26,6 +26,11 @@
                                can do). 0: type 4 plays LP24, the page shows LPDL*, the cheat sheet says so */
 #endif
 
+#ifndef VS_SH101
+#define VS_SH101 1          /* filter type 5, SH-101 (sh101_vcf.h: the SH-101's VCF, float; M-Vsynth2's own, not Synth1's:
+                               Synth2 plays a type 5 patch as LPDL). 0: type 5 plays LP24 */
+#endif
+
 #ifndef VS_NBANK
 #define VS_NBANK 8u         /* user banks of 128 patches, one flash slot each (vs_prog.h): 1..8 (NSLOT) */
 #endif
@@ -36,8 +41,9 @@
                                held at the line's end. RAM 2 x 2 B x (44.1 x ms + 3): 176 KB of the pool */
 #endif
 
-#if (VS_DEBUG != 0 && VS_DEBUG != 1) || (VS_XFER != 0 && VS_XFER != 1) || (VS_LPDL != 0 && VS_LPDL != 1)
-#error "vs_build.h: VS_DEBUG, VS_XFER and VS_LPDL are 0 or 1"
+#if (VS_DEBUG != 0 && VS_DEBUG != 1) || (VS_XFER != 0 && VS_XFER != 1) || (VS_LPDL != 0 && VS_LPDL != 1) || \
+    (VS_SH101 != 0 && VS_SH101 != 1)
+#error "vs_build.h: VS_DEBUG, VS_XFER, VS_LPDL and VS_SH101 are 0 or 1"
 #endif
 #if VS_NV < 1u || VS_NV > 16u
 #error "vs_build.h: VS_NV is 1..16"

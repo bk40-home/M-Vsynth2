@@ -455,7 +455,22 @@ static int32_t w_osc(uint32_t shape, uint32_t ph, uint32_t pw)
     default: return w_rnd(ph >> 9);
     }
 }
-static uint32_t pw_of(void) { return 32768u + (uint32_t)P(VS_P_OSC_PW) * 30000u / 127u; }
+/* PULSE's drawn width, Q16, as the voice plays it (vs_voice.c: width = P/W / 254, held in [1.25, 252.625] / 254):
+ * 127 a square, 0 a thin pulse (issue #3: it was drawn the other way round, 50 % at 0 and ~96 % at 127). While a
+ * voice sounds and an LFO or the mod env moves P/W, the width the engine played last (eng.pw_live), so the OSC pages
+ * move with it */
+static uint32_t pw_seen, pw_seen_ms;
+static int pw_moving(void)
+{
+    const uint32_t q = eng.pw_seq;
+    if (q != pw_seen) { pw_seen = q; pw_seen_ms = fm1_ms; }
+    return eng.act && pw_seen && fm1_ms - pw_seen_ms < 200u;
+}
+static uint32_t pw_of(void)
+{
+    const uint32_t w = pw_moving() ? eng.pw_live >> 16 : (uint32_t)P(VS_P_OSC_PW) * 65536u / 254u;
+    return w < 323u ? 323u : w > 65181u ? 65181u : w;
+}
 /* OSC2's cycles a cycle of OSC1, Q8, from PITCH (64 the same; a semitone a step, drawn between 1/2 and 8) */
 static uint32_t osc2_ratio(void)
 {
@@ -540,8 +555,8 @@ static void g_env(uint32_t kind)
 
 static void g_filter(void)
 {
-    static const uint8_t SHAPE[5] = {0, 1, 2, 3, 1};    /* LP12 LP24 HP12 BP12 LPDL (drawn as LP24) */
-    const uint32_t ty = (uint32_t)clampi(P(VS_P_FLT_TYPE), 0, 4), sh = SHAPE[ty];
+    static const uint8_t SHAPE[6] = {0, 1, 2, 3, 1, 1}; /* LP12 LP24 HP12 BP12 LPDL SH101 (both drawn as LP24) */
+    const uint32_t ty = (uint32_t)clampi(P(VS_P_FLT_TYPE), 0, 5), sh = SHAPE[ty];
     const int32_t rq = P(VS_P_FLT_RES) * 7 * 16 / 127, r0 = rq >> 4, fr = rq & 15, r1 = r0 < 7 ? r0 + 1 : 7;
     const int32_t y0 = PY0 + 22;                /* 0 dB; a pixel a dB */
     int32_t pass, x;
@@ -949,7 +964,15 @@ static void g_save(void)
 {
     char s[40], *p;
     uint32_t k;
-    txt_fit(120, PY0 - 4, 220, &FONT_BIG, prog_name[0] ? prog_name : "-", T.text, 1);
+    /* the name being written (issue #4): a cell a character, the cursor's in ACCENT on a bar; spaces show as a tick */
+    for (k = 0; k < VS_NAME; k++) {
+        const int32_t cx = 120 - (int32_t)VS_NAME * 13 / 2 + (int32_t)k * 13;
+        const int hot = k == save_pos;
+        char c[2] = {save_name[k], 0};
+        if (hot) fill(cx, PY0 - 6, 13, 22, T.raised);
+        fill(cx + 2, PY0 + 16, 9, hot ? 2 : 1, hot ? T.accent : T.line);
+        if (c[0] != ' ') txt(cx + (13 - text_w(&FONT_TTL, c)) / 2, PY0 - 4, &FONT_TTL, c, hot ? T.accent : T.text);
+    }
     p = put_s(s, "TO  "); p = put_s(p, vs_prog_bank_name(save_bank)); *p++ = ' '; p = put_3(p, save_slot + 1u); *p = 0;
     txt_fit(120, PY0 + 28, 220, &FONT_TTL, s, T.theme, 1);
     if (save_bank == prog.bank) {
@@ -1124,6 +1147,9 @@ static void ui_draw_page(void)
         const uint32_t l = kind == G_LFO2;
         if (P(l ? VS_P_LFO2_ON : VS_P_LFO1_ON) && P(l ? VS_P_LFO2_DEPTH : VS_P_LFO1_DEPTH)) { key = hsh(key, fm1_ms / 80u); ms = 80u; }
     }
+    if ((kind == G_OSC1 || kind == G_SUB || kind == G_OSC2 || kind == G_MIX) && pw_moving()) {   /* P/W moving: 12 a second */
+        key = hsh(key, eng.pw_live >> 22); ms = 80u;
+    }
     ui_panel(kind, hsh(key, page), need_full ? 0u : ms);
     ui_cells_param(pg->id);
     ui_foot_prog();
@@ -1162,8 +1188,10 @@ static void ui_draw_save(void)
 {
     ui_knob_t k;
     char *p;
+    uint32_t i, h = hsh(hsh(save_bank << 8 | save_slot, prog.bank), save_pos);
     ui_head("SAVE", T.warn, "SAVE", 0, 0);
-    ui_panel(G_SAVE, hsh(hsh(save_bank << 8 | save_slot, prog.bank), (uint32_t)(uint8_t)prog_name[0] << 8 ^ (uint8_t)prog_name[2]), 0u);
+    for (i = 0; i < VS_NAME; i++) h = hsh(h, (uint8_t)save_name[i]);
+    ui_panel(G_SAVE, h, 0u);
     k.hot = 0; k.mod = 0; k.c = 0;
     k.w = W_CHOICE; k.n = (uint8_t)VS_NBANK; k.idx = (uint8_t)(save_bank - 1u); k.v = 0; k.lab = "BANK";
     p = put_s(k.val, vs_prog_bank_name(save_bank)); *p = 0;
@@ -1171,8 +1199,14 @@ static void ui_draw_save(void)
     k.w = W_VALUE; k.n = 0; k.idx = 0; k.v = ang_of((int32_t)save_slot, 0, 127); k.lab = "SLOT";
     p = put_3(k.val, save_slot + 1u); *p = 0;
     ui_cell(1, &k);
-    k.w = W_NONE; k.lab = ""; k.val[0] = 0; k.v = 0;
+    k.v = ang_of((int32_t)save_pos, 0, (int32_t)VS_NAME - 1); k.lab = "CURSOR";
+    p = put_3(k.val, save_pos + 1u); k.val[0] = k.val[1]; k.val[1] = k.val[2]; k.val[2] = 0;
     ui_cell(2, &k);
+    for (i = 0; i < NAME_NCH && NAME_CHARS[i] != save_name[save_pos]; i++) {}
+    k.v = ang_of((int32_t)(i < NAME_NCH ? i : 0), 0, (int32_t)NAME_NCH - 1); k.lab = "CHAR";
+    p = k.val;
+    if (save_name[save_pos] == ' ') p = put_s(p, "SPACE"); else *p++ = save_name[save_pos];
+    *p = 0;
     ui_cell(3, &k);
     ui_foot("SAVE: WRITE", "", T.text, "ANOTHER: LEAVE", T.dim);
 }

@@ -65,6 +65,16 @@ static void routes_apply(vs_engine_t *e);
 #ifndef VS_SHED_TICKS
 #define VS_SHED_TICKS(n) 0u                     /* the overload guard's budget for n frames (vs_dsp.c); 0: none */
 #endif
+static void sh_reset(vs_voice_t *v)             /* SH-101's states cleared, its circuit noise from a fixed seed (the same
+                                                   notes twice give the same samples) */
+{
+#if VS_SH101
+    sh101_reset(&v->shs, 0x2545F491u);
+#else
+    (void)v;
+#endif
+}
+
 static void diode_reset(vs_voice_t *v)          /* LPDL's states cleared, its coefficients due */
 {
 #if VS_LPDL
@@ -80,6 +90,9 @@ void vs_engine_init(vs_engine_t *e)
 {
     uint32_t i, k;
     vs_osc_init();
+#if VS_SH101
+    sh101_init();                               /* SH-101's diode and resonance tables (float, once) */
+#endif
     vs_patch_init(&e->patch);
     e->bend14 = 0;
     e->nv = VS_NV;
@@ -119,6 +132,7 @@ void vs_engine_init(vs_engine_t *e)
         v->ag = v->ag_step = 0; v->a_left = 0; v->a_since = 0; v->a_stage = VS_ENV_IDLE;
         v->low = v->band = v->lenv = 0; v->f = -1;
         v->la = -1; v->lk = 0; v->lad[0] = v->lad[1] = v->lad[2] = v->lad[3] = v->lfb = 0; v->agc = 0; v->agg = 65536; diode_reset(v);
+        sh_reset(v);
         v->vel_g = 32768; v->vel_key = 0xFFFFu;
         v->note = v->vel = v->gate = v->active = 0;
         v->age = 0;
@@ -198,9 +212,12 @@ static void blk_make(const vs_engine_t *e, blk_t *b)
         b->mix1 = ((32768 - m2) * 32768 + den / 2) / den;
         b->mix2 = (((m2 * b->main_w) >> 15) * 32768 + den / 2) / den;
     }
-    b->ftype = (uint32_t)vs_clamp(p[VS_P_FLT_TYPE], 0, 4);
+    b->ftype = (uint32_t)vs_clamp(p[VS_P_FLT_TYPE], 0, 5);
 #if !VS_LPDL
     if (b->ftype == 4u) b->ftype = 0u;          /* (built without LPDL: it plays as LP12) */
+#endif
+#if !VS_SH101
+    if (b->ftype == 5u) b->ftype = 1u;          /* (built without SH-101: it plays as LP24) */
 #endif
     /* LP24's k before its compensation: max(0, 0.0297 res - 0.076), Q16 (from Q26: 0.0297 and 0.076 x 2^26) */
     b->lad_kr = res * 1993097 > 5100274 ? (res * 1993097 - 5100274) >> 10 : 0;
@@ -590,6 +607,7 @@ static void voice_start(vs_engine_t *e, vs_voice_t *v, const blk_t *b, uint32_t 
     if (!stolen) {                              /* a stolen voice keeps its filter under the live signal: no click */
         v->low = v->band = v->lenv = 0;
         v->la = -1; v->lk = 0; v->lad[0] = v->lad[1] = v->lad[2] = v->lad[3] = v->lfb = 0; v->agc = 0; v->agg = 65536; diode_reset(v);
+        sh_reset(v);
         v->ag = 0;
         v->f = -1;
     }
@@ -1079,7 +1097,17 @@ static inline __attribute__((always_inline)) void voice_out(vs_voice_t *v, const
     for (i = 0; i < n; i++) {
         int32_t x = (o1[i] * mix1 + o2[i] * mix2) >> 15;            /* Q14 */
         int32_t high, y, a, ge;
-        if (ftype == 4u) {                      /* LPDL (no output limiter: its feedback saturates) */
+        if (ftype == 5u) {                      /* SH-101 (sh101_vcf.h, float): Q14 in, Q20 out; no output limiter (its
+                                                   diodes limit it, as LPDL's feedback does) */
+#if VS_SH101
+            float fy = sh101_process(&v->shc, &v->shs, (float)x * (1.0f / 16384.0f)) * 1048576.0f;
+            fy = fy > (float)STATE_MAX ? (float)STATE_MAX : fy < -(float)STATE_MAX ? -(float)STATE_MAX : fy;
+            y = (int32_t)fy;
+#else
+            y = 0;
+#endif
+            high = 0; (void)high;
+        } else if (ftype == 4u) {                      /* LPDL (no output limiter: its feedback saturates) */
 #if VS_LPDL
             y = lpdl_tick(v, x * 64);
 #else
@@ -1118,8 +1146,10 @@ static inline __attribute__((always_inline)) void voice_out(vs_voice_t *v, const
         band = vs_clamp(band, -STATE_MAX, STATE_MAX);
         y = ftype == 0u ? low : ftype == 2u ? high : band;
         }
-        a = y < 0 ? -y : y;                     /* the output limiter: a gain on a follower of |y| */
-        if (ftype != 4u) {
+        a = y < 0 ? -y : y;                     /* the output limiter: a gain on a follower of |y| (not LPDL, not SH-101:
+                                                   their feedback limits itself; on SH-101's singing the follower rode
+                                                   the wave, 9 % THD at 17 Hz) */
+        if (ftype != 4u && ftype != 5u) {
         lenv += (((a - lenv) >> 8) * (a > lenv ? LIMIT_ATK_Q16 : LIMIT_REL_Q16)) >> 8;
         if (lenv > VS_LIMIT_FLOOR_Q14 * 64) {
             uint32_t ei = (uint32_t)lenv >> 15, fr = (uint32_t)lenv & 32767u;
@@ -1261,6 +1291,7 @@ static void voice_block(vs_engine_t *e, vs_voice_t *v, const blk_t *b, int32_t *
         if ((lm && b->r_pw) || mw) {
             for (f = 0; f < n; f++) wv[f] = pw_at(b, lm ? lm->pw[f] : 0, mw ? lv[f] : 0, mw);
             mo.w = wv;
+            if (n) { e->pw_live = wv[n - 1]; e->pw_seq++; }   /* (the screen's; any voice will do) */
         }
         if ((lm && b->r_fm) || mf) {
             for (f = 0; f < n; f++) dv[f] = fm_at(b, lm ? lm->fm[f] : 0, mf ? lv[f] : 0, mf ? sv[f] : 0u, mf);
@@ -1282,6 +1313,14 @@ static void voice_block(vs_engine_t *e, vs_voice_t *v, const blk_t *b, int32_t *
     if (b->ftype == 4u) {                       /* LPDL: its coefficients when the cutoff moved 1/8 knob or the res moved */
         const int32_t res = vs_clamp(e->ev[VS_P_FLT_RES], 0, 127), dc = c - v->dcut;
         if (res != v->dres || dc >= 8192 || dc <= -8192) lpdl_coef(v, c, res);
+        fstep = fstep2 = 0;
+        fk = n;
+    } else
+#endif
+#if VS_SH101
+    if (b->ftype == 5u) {                       /* SH-101: its coefficients at the block's end (cached while unchanged);
+                                                   FREQ on the SH-101's own slider scale, RES 0..127 = its slider 0..10 */
+        sh101_coef(&v->shc, sh101_knob_cut(c), sh101_panel_res(vs_clamp(e->ev[VS_P_FLT_RES], 0, 127)));
         fstep = fstep2 = 0;
         fk = n;
     } else
@@ -1338,6 +1377,9 @@ static void voice_block(vs_engine_t *e, vs_voice_t *v, const blk_t *b, int32_t *
 #if VS_LPDL
                 else if (b->ftype == 4u) voice_out(v, b, a, bb, o, m, fs, ks, seg[ai].step, g_amp, am, 4u, 1);
 #endif
+#if VS_SH101
+                else if (b->ftype == 5u) voice_out(v, b, a, bb, o, m, fs, ks, seg[ai].step, g_amp, am, 5u, 1);
+#endif
                 else voice_out(v, b, a, bb, o, m, fs, ks, seg[ai].step, g_amp, am, 3u, 1);
             } else {
                 if (b->ftype == 0u) voice_out(v, b, a, bb, o, m, fs, ks, seg[ai].step, g_amp, am, 0u, 0);
@@ -1345,6 +1387,9 @@ static void voice_block(vs_engine_t *e, vs_voice_t *v, const blk_t *b, int32_t *
                 else if (b->ftype == 1u) voice_out(v, b, a, bb, o, m, fs, ks, seg[ai].step, g_amp, am, 1u, 0);
 #if VS_LPDL
                 else if (b->ftype == 4u) voice_out(v, b, a, bb, o, m, fs, ks, seg[ai].step, g_amp, am, 4u, 0);
+#endif
+#if VS_SH101
+                else if (b->ftype == 5u) voice_out(v, b, a, bb, o, m, fs, ks, seg[ai].step, g_amp, am, 5u, 0);
 #endif
                 else voice_out(v, b, a, bb, o, m, fs, ks, seg[ai].step, g_amp, am, 3u, 0);
             }

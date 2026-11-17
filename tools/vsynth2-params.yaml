@@ -10,6 +10,8 @@
 # pages: the panel in its order: the button, the title, the four knobs' parameters (~ an empty column). Every
 #   parameter is on one page exactly, but 59 (ARP on / off: the ARP button's tap). gen_params.py checks it.
 # fx_knobs: what CTRL 1, CTRL 2 and LEVEL are called in each EFFECT type (Synth2's DisplayName, as panel labels).
+# hi: M-Vsynth2's own range end where it goes past Synth2's (gen_params.py and sy1.py both take it): only FILTER TYPE,
+#   whose 5 (SH101) is M-Vsynth2's own filter. Synth2 plays such a patch as its top type, LPDL.
 params:
   0:  {key: OSC1_SHAPE,    label: "SHAPE",   sec: OSC1,    kind: enum,    cc: 17, choices: [SINE, SAW, PULSE, TRI]}
   1:  {key: OSC2_SHAPE,    label: "SHAPE",   sec: OSC2,    kind: enum,    cc: 24, choices: [SAW, PULSE, TRI, NOISE]}
@@ -25,7 +27,7 @@ params:
   11: {key: MENV_AMOUNT,   label: "AMOUNT",  sec: MENV,    kind: signed,  cc: 40}
   12: {key: MENV_A,        label: "ATTACK",  sec: MENV,    kind: num,     cc: 37}
   13: {key: MENV_D,        label: "DECAY",   sec: MENV,    kind: num,     cc: 39}
-  14: {key: FLT_TYPE,      label: "TYPE",    sec: FILT,    kind: enum,    cc: 49, choices: [LP12, LP24, HP12, BP12, LPDL]}
+  14: {key: FLT_TYPE,      label: "TYPE",    sec: FILT,    kind: enum,    cc: 49, hi: 5, choices: [LP12, LP24, HP12, BP12, LPDL, SH101]}
   15: {key: FENV_A,        label: "ATTACK",  sec: FENV,    kind: num,     cc: 41}
   16: {key: FENV_D,        label: "DECAY",   sec: FENV,    kind: num,     cc: 42}
   17: {key: FENV_S,        label: "SUSTAIN", sec: FENV,    kind: num,     cc: 43}

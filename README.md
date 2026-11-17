@@ -37,7 +37,7 @@ MIDI in plays it too (notes, bend, the sustain pedal, program change, bank selec
 | **SUB** | SINE, TRIANGLE, SAW, SQUARE, at the note or an octave down, locked to OSC 1. |
 | **OSC 2** | SAW, PULSE, TRIANGLE, NOISE. PITCH ±60 semitones, FINE, keyboard TRACK on or off, SYNC to OSC 1, RING. |
 | **Common** | MIX, P/W, KEY SHIFT, TUNE. MOD ENV (attack, decay, amount) to OSC 2 pitch, FM or P/W. |
-| **Filter** | LP12, LP24, HP12, BP12, LPDL. FREQ, RES, envelope AMOUNT, KBD TRACK, SATURATION, velocity switch. FILTER ENV (ADSR). |
+| **Filter** | LP12, LP24, HP12, BP12, LPDL, and SH101 (M-Vsynth2's own: the SH-101's VCF, see docs/SH101_FILTER.md). FREQ, RES, envelope AMOUNT, KBD TRACK, SATURATION, velocity switch. FILTER ENV (ADSR). |
 | **Amp** | AMP ENV (ADSR), GAIN, velocity sensitivity, PAN. |
 | **LFOs** | Two: saw, triangle, square, S&H, smooth random, sine. To OSC 2, OSC 1+2, filter, amp, P/W, FM or pan. TEMPO sync, KEY sync. |
 | **Effects** | EFFECT (two analog distortions, digital distortion, decimator, ring modulator, compressor, four phasers), EQ (tone and a peak), DELAY (stereo, cross, ping-pong; tempo times, spread, tone), CHORUS (four types). A limiter on the output. |
@@ -70,7 +70,7 @@ CPU, the tempo and the octave.
 | **GLO** | VOICE, UNISON (2 pages), CONTROL (2 pages), GLOBAL (MIDI CH, VOICES, TEMPO; CLOCK reads INT or EXT), GLOBAL 2/2 (THEME, COLOUR) |
 | **ARP** | tap: the arp on / off; hold 0.4 s: ARP |
 | **SEQ** | BANK: KNOB 1 the bank (FACTORY, U1 .. U8), SELECT or PRESETS its 128 slots; the patch under the cursor plays |
-| **SAVE** | its screen: KNOB 1 the bank (U1 .. U8), KNOB 2 the slot (it shows what is there); SAVE again writes, any other button leaves. The bank goes to flash once nothing sounds |
+| **SAVE** | its screen: KNOB 1 the bank (U1 .. U8), KNOB 2 the slot (it shows what is there), KNOB 3 the cursor in the name and KNOB 4 (or SELECT) the character under it; SAVE again writes, any other button leaves. The bank goes to flash once nothing sounds |
 | **OCT- OCT+** | the octave; both held 1 s: all notes off |
 
 Every knob, range and choice: the cheat sheet (`docs/cheatsheet.html`), generated from the firmware's own page table.
@@ -154,6 +154,24 @@ python3 tools/fm1_install.py build/mvsynth2.fwsc
 ```
 
 On Windows, `.\flash.ps1` does the same through WSL.
+
+### Build settings
+
+Set at build time, with no code to edit: `.\flash.ps1 -Defs "-DNAME=value"` on Windows, or
+`DINGHY_DEFS="-DNAME=value" ./build.sh`. Several go in one string, separated by spaces. The next build without them is the
+normal firmware again.
+
+| Setting | Default | What it does |
+| --- | --- | --- |
+| `SH101_SING_TRIM` | `0.7f` | FILTER TYPE 5 (SH101): its level when it self-oscillates. `1.0f` is the real circuit (+5.6 dB over a full oscillator: right for a mono synth, but 3-4 notes singing run into the output limiter). Lower it for big resonant chords (`0.4f` is -8 dB), raise it for solo lines. It eases in above the onset, so it changes nothing below RES ~108 |
+| `SH101_RES_TAPER` | `2.0f` | Type 5's RES knob curve: `1.0f` is the 101's linear slider (it sings from RES 92); `2.0f` sings from ~108, more of the knob below |
+| `SH101_RES_MAX` | `10.0f` | Type 5's RES at knob 127, on the 101's 0..10 scale; below `7.2f` it never self-oscillates |
+| `SH101_CUT_MIN_HZ`, `SH101_CUT_MAX_HZ` | `7.0f`, `11550.0f` | Type 5's FREQ range |
+| `VS_SH101` | `1` | `0`: no type 5 (it plays as LP24), no float code |
+| `VS_LPDL` | `1` | `0`: no LPDL (type 4 plays as LP12) |
+| `VS_NV` | `8u` | Voices |
+
+Example: `.\flash.ps1 -Defs "-DSH101_SING_TRIM=0.85f -DSH101_RES_TAPER=1.5f"`. More on type 5: [docs/SH101_FILTER.md](docs/SH101_FILTER.md).
 
 The chip's rules: [docs/RULES.md](docs/RULES.md); the platform's calls: [docs/API.md](docs/API.md).
 

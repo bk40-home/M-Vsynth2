@@ -35,11 +35,22 @@ VER100, VER105, VER107 = 1, 2, 4
 _cache = {}
 
 
+def own_hi():
+    """M-Vsynth2's own range ends past Synth2's (vsynth2-params.yaml hi:, as gen_params.py): FILTER TYPE 5, SH101."""
+    import yaml
+    ovl = yaml.safe_load((Path(__file__).resolve().parent / "vsynth2-params.yaml").read_text(encoding="utf-8"))["params"]
+    return {i: o["hi"] for i, o in ovl.items() if "hi" in o}
+
+
+OWN_HI = own_hi()
+
+
 def tables():
     """Ranges and defaults (Params.hpp) and the legacy rules (LegacyTables.hpp), read once from Synth2."""
     if not _cache:
         r = synth2.root()
         rows, init = synth2.params(r)
+        rows = [(*x[:3], OWN_HI.get(i, x[3]), x[4]) for i, x in enumerate(rows)]
         txt = synth2.strip_comments((r / "EngineCore/LegacyTables.hpp").read_text())
         flat = [int(v) for v in synth2.c_array(txt, "kTables")]
         if len(flat) % 128:

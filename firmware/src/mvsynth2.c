@@ -157,6 +157,26 @@ enum { SCR_HOME, SCR_PAGE, SCR_BANK, SCR_SAVE, SCR_GLOBAL };
 static uint32_t scr = SCR_HOME, page, col, scr_drawn = ~0u, page_drawn = ~0u;
 static uint8_t last_page[7];                    /* a section's page last seen (index into VS_PAGES) */
 static uint32_t cursor, save_bank = 1, save_slot, need_full = 1;
+/* SAVE names the patch (issue #4): KNOB 3 moves the cursor, KNOB 4 (or SELECT) the character under it */
+static char save_name[VS_NAME];
+static uint32_t save_pos;
+static const char NAME_CHARS[] = " ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghijklmnopqrstuvwxyz-_.+#&/()!'";
+#define NAME_NCH (sizeof NAME_CHARS - 1u)
+static void save_begin(void)                    /* the name as it is, the cursor after its last character */
+{
+    uint32_t i, n = 0;
+    for (i = 0; i < VS_NAME; i++) { save_name[i] = prog_name[i] && n == i ? prog_name[i] : ' '; if (prog_name[i] && n == i) n++; }
+    save_pos = n < VS_NAME ? n : VS_NAME - 1u;
+}
+static void save_char(int32_t e)                /* the character under the cursor, a step through NAME_CHARS */
+{
+    uint32_t i = 0;
+    int32_t k;
+    while (i < NAME_NCH && NAME_CHARS[i] != save_name[save_pos]) i++;
+    if (i == NAME_NCH) i = 0;                   /* (one not in the list: from the space) */
+    k = ((int32_t)i + e) % (int32_t)NAME_NCH;
+    save_name[save_pos] = NAME_CHARS[k < 0 ? k + (int32_t)NAME_NCH : k];
+}
 static uint32_t big_id = 0xFFu;                 /* the parameter last edited: the knob in hand (vs_ui.c ui_touch) */
 
 static const uint8_t SEC_BTN[7] = {BTN_LFO, BTN_EDIT, BTN_ENV, BTN_SEL, BTN_FX, BTN_GLO, BTN_ARP};   /* VS_BTN_* order */
@@ -305,14 +325,21 @@ static void app_main(void)
         if (b >> BTN_HOME & 1u) { scr = SCR_HOME; need_full = 1; }
         if (b >> BTN_SEQ & 1u) { scr = SCR_BANK; cursor = slot & 127u; need_full = 1; }
         if (b >> BTN_SAVE & 1u) {
-            if (scr != SCR_SAVE) { scr = SCR_SAVE; save_bank = prog.bank ? prog.bank : 1u; save_slot = slot & 127u; need_full = 1; }
+            if (scr != SCR_SAVE) { scr = SCR_SAVE; save_bank = prog.bank ? prog.bank : 1u; save_slot = slot & 127u; save_begin(); need_full = 1; }
             else {                              /* write: the bank comes in if it is not the one shown */
                 vs_patch_t p = eng.patch;
+                uint32_t i;
+                for (i = 0; i < VS_NAME; i++) p.name[i] = save_name[i];   /* the name as edited */
                 if (save_bank != prog.bank) {
                     if (prog.dirty && vs_prog_flush(&prog)) save_bank = prog.bank;   /* (failed: stays) */
                     else { vs_prog_load(&prog, save_bank); set.bank = prog.bank; }
                 }
-                if (!vs_prog_write(&prog, save_slot, &p)) { slot = slot_want = save_slot; edited = 0; set.slot = (uint8_t)slot; set_dirty = 1; }
+                if (!vs_prog_write(&prog, save_slot, &p)) {
+                    slot = slot_want = save_slot; edited = 0; set.slot = (uint8_t)slot; set_dirty = 1;
+                    for (i = 0; i < VS_NAME; i++) eng.patch.name[i] = prog_name[i] = save_name[i];
+                    prog_name[VS_NAME] = 0;
+                    for (i = VS_NAME; i > 0u && prog_name[i - 1u] == ' '; i--) prog_name[i - 1u] = 0;
+                }
                 scr = SCR_HOME; need_full = 1;
             }
         }
@@ -337,12 +364,15 @@ static void app_main(void)
                 else if (scr == SCR_BANK && k == 0u) { int32_t nb = (int32_t)prog.bank + e; bank_want = nb < 0 ? 0 : nb > (int32_t)VS_NBANK ? (int32_t)VS_NBANK : nb; need_full = 1; }
                 else if (scr == SCR_SAVE && k == 0u) { int32_t nb = (int32_t)save_bank + e; save_bank = (uint32_t)(nb < 1 ? 1 : nb > (int32_t)VS_NBANK ? (int32_t)VS_NBANK : nb); }
                 else if (scr == SCR_SAVE && k == 1u) save_slot = (save_slot + 128u + (uint32_t)e) & 127u;
+                else if (scr == SCR_SAVE && k == 2u) { int32_t q = (int32_t)save_pos + e; save_pos = (uint32_t)(q < 0 ? 0 : q > (int32_t)VS_NAME - 1 ? (int32_t)VS_NAME - 1 : q); }
+                else if (scr == SCR_SAVE && k == 3u) save_char(e);
                 else if (scr == SCR_GLOBAL) { global_edit(k, e); col = k; }
             }
         if ((e = fm1_enc_take(ENC_SELECT)) != 0) {
             if (scr == SCR_PAGE && VS_PAGES[page].id[col] != 0xFFu) { const uint32_t id = VS_PAGES[page].id[col], m = (uint32_t)pmax(id); int32_t v = pval(id) + e;   /* (fine: no fast turn) */
                 vs_param_set(&eng.patch, id, v > (int32_t)m ? (int32_t)m : v); ui_touch(id); edited = 1; }
             else if (scr == SCR_BANK) { cursor = (cursor + 128u + (uint32_t)e) & 127u; if (!vs_prog_empty(&prog, cursor)) slot_want = cursor; }
+            else if (scr == SCR_SAVE) save_char(e);
             else if (scr == SCR_GLOBAL) global_edit(col, e);
         }
         midi_in();

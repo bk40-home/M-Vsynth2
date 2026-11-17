@@ -74,7 +74,9 @@ static void fm1_irq_init(void)
      * after PR #111 by spinkham): this compiler treats a divide as harmless and may run a loop-invariant one ahead of the
      * test that guards it. Off, such a divide gives a value nobody uses; the cost: a real divide by 0 gives a wrong value
      * instead of a crash report (the host tests run with -fsanitize=integer-divide-by-zero to catch one) */
-    FM1_EMU_CON &= ~(1u << 2);
+    FM1_EMU_CON &= ~((1u << 2) | (31u << 16));          /* and the FPU's IEEE-flag traps (bits 16..20), as the
+                                                        * SDK, fm-106 and Melodee: float rounding must not end in
+                                                        * a crash report. CPU1 masks its own (fm1_multicore.h) */
     FM1_ETM_CON |= 1u;                                      /* branch trace for the report */
 }
 

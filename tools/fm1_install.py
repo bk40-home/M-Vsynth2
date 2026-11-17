@@ -296,6 +296,7 @@ class Updater:
     def __init__(self, backend, port=None):
         self.backend = backend
         self.port = port
+        self.why = {}                           # port -> why it was passed over (for the not-found message)
 
     def candidates(self, only_port):
         names = self.backend.input_names()
@@ -312,14 +313,17 @@ class Updater:
         for name in self.candidates(only_port):
             out = pair_output(name, outs)
             if not out:
+                self.why[name] = f"no matching output port (outputs: {', '.join(outs) or 'none'})"
                 continue
             try:
                 link = self.backend.open(name, out)
-            except Exception:
+            except Exception as e:              # Windows: the port is open in another program (MIDI ports are exclusive)
+                self.why[name] = f"could not open it ({type(e).__name__}: {e}): another program has it open?"
                 continue
             ident = handshake(link, 2)
             if ident and (want is None or want(ident)):
                 return Device(link, ident, name)
+            self.why[name] = f"opened, but {'it answered as ' + ident.text if ident else 'no identity reply in 2 s'}"
             link.close()
         return None
 
@@ -495,8 +499,9 @@ def package_damage(image):
 def not_found(up):
     names = up.backend.input_names()
     where = f"no MIDI port matching {up.port!r} answered" if up.port else "FM-1 not found"
+    why = "".join(f"\n  {n}: {w}" for n, w in up.why.items())
     return InstallError("notfound", f"{where} (USB data cable? another app using it?)"
-                        f"\n  MIDI inputs: {', '.join(names) if names else '(none)'}")
+                        f"\n  MIDI inputs: {', '.join(names) if names else '(none)'}{why}")
 
 
 class Progress:

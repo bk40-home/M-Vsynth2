@@ -43,7 +43,11 @@ APP_SLOT = fm1pkg_make.APP_SLOT
 LOADER_LOAD = 0x01C0A800
 LOADER_NAME = b"usb_hid_ota.bin"    # the file name the SPL looks for
 DOCKER_IMAGE = os.environ.get("JIELI_DOCKER_IMAGE", "debian:bookworm-slim")
-CFLAGS = ["-Os", "-ffunction-sections", "-fno-builtin", "-Wall", "-Wno-unused-function"]   # keep -Os: with -O2 (unity
+CFLAGS = ["-Os", "-ffunction-sections", "-fno-builtin", "-Wall", "-Wno-unused-function",
+          "-mcpu=r3", "-mfprev1", "-ffp-contract=off", "-Werror=double-promotion"]   # the AC79's single-precision FPU
+          # (the SDK's flags, as fm-106 and Melodee; filter type 5 is float). No FMA on the chip: contraction off, so the
+          # host computes the same samples. No double hardware: an accidental double is an error, not a link failure.
+            # keep -Os: with -O2 (unity
                                     # build, usb.c inside) the FM-1's USB-MIDI IN babbled on the device (OberVave, 2026-10-13)
 LINE = re.compile(r"^\s*([0-9a-f]+):\s+((?:[0-9a-f]{2} )+)\s*\t(.*)$")
 

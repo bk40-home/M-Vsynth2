@@ -131,7 +131,7 @@
 
   /* ---- what the page shows */
   const OSC1 = ["SINE", "SAW", "PULSE", "TRI"], OSC2 = ["", "SAW", "PULSE", "TRI", "NOISE"];
-  const FLT = [["LP12", "lp", 2], ["LP24", "lp", 4], ["HP12", "hp", 2], ["BP12", "bp", 2], ["LPDL", "lp", 4]];
+  const FLT = [["LP12", "lp", 2], ["LP24", "lp", 4], ["HP12", "hp", 2], ["BP12", "bp", 2], ["LPDL", "lp", 4], ["SH101", "lp", 4]];
   const MODE = ["POLY", "MONO", "LEGATO"];
   const v127 = x => Math.max(0, Math.min(1, x / 127));
 

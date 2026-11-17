@@ -8,7 +8,8 @@
 Inputs:
   Synth2 (tools/synth2.py says where)   EngineCore/Params.hpp (ranges, the original's defaults), InitPatch.hpp (INIT),
                                         MeasuredTables.hpp, Lfo.hpp, Effects.hpp (what a value reads as)
-  tools/vsynth2-params.yaml             our overlay: C name, panel label, section, kind, CC, choices; the pages
+  tools/vsynth2-params.yaml             our overlay: C name, panel label, section, kind, CC, choices; the pages; hi: a
+                                        range end of our own past Synth2's (FILTER TYPE 5, SH101)
 
 What comes out (all const, so it costs flash, not RAM):
   VS_P_<KEY>         the parameter index (= the .sy1 line index)
@@ -87,6 +88,10 @@ def main():
     ovl, pages, fxk = y["params"], y["pages"], y["fx_knobs"]
     if sorted(ovl) != list(range(99)):
         fail("the overlay must have parameters 0..98")
+    for i in range(99):                         # M-Vsynth2's own range ends (the overlay's hi: FILTER TYPE's SH101)
+        if "hi" in ovl[i]:
+            if ovl[i]["hi"] < rows[i][3]: fail(f"{i}: hi {ovl[i]['hi']} is below Synth2's {rows[i][3]}")
+            rows[i] = (*rows[i][:3], ovl[i]["hi"], rows[i][4])
     secs, keys, choices, ch0, ccs = [], set(), [], {}, {}
     for i in range(99):
         o, (_, _, lo, hi, de) = ovl[i], rows[i]

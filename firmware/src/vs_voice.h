@@ -13,7 +13,9 @@
  *   OSC1 (SINE / SAW / PULSE / TRIANGLE) + SUB (SINE / TRIANGLE / SAW / SQUARE, at OSC1's note or an octave down)
  *   and OSC2 (SAW / PULSE / TRIANGLE / NOISE) -> MIX (a linear crossfade) -> FILTER
  *   (LP12 / HP12 / BP12: the Chamberlin SVF run twice a frame with the input held; LP24: four bilinear one-poles
- *   with the feedback a frame late through an AGC; LPDL: the fitted diode ladder) -> the output limiter (not LPDL)
+ *   with the feedback a frame late through an AGC; LPDL: the fitted diode ladder; SH-101 (type 5, M-Vsynth2's own:
+ *   sh101_vcf.h, float, the SH-101's IR3109 VCF and its resonance circuit, its own FREQ and RES scales) -> the output
+ *   limiter (not LPDL or SH-101: their feedback limits itself)
  *   -> SATURATION -> AMP (0.2 x GAIN x the velocity law x the amp env) -> the bus
  * The bus (vs_bus.h): EFFECT -> PAN (the patch's, and the LFOs': a gain a side) -> EQ (peak, TONE) -> DELAY ->
  *   CHORUS -> the output limiter (vs_lim.h: the one thing added to Synth2) -> out
@@ -129,6 +131,18 @@
 #include "vs_lfo.h"
 #include "vs_bus.h"
 #include "vs_lim.h"
+#if VS_SH101
+#ifndef SH101_RES_TAPER
+#define SH101_RES_TAPER 2.0f        /* type 5's RES knob: it sings from knob ~108 (the 101's linear slider: from 92), nearer
+                                       the top as Synth1's LP24 does; the full 101 range still at 127 (sh101_vcf.h) */
+#endif
+#ifndef SH101_SING_TRIM
+#define SH101_SING_TRIM 0.7f        /* type 5 sings -3 dB at full RES (eased in from its onset; 0.4 was -8 dB: too tame), so
+                                       a 3-4 note chord stays off the output limiter (the circuit's own level, 1.0, is for a
+                                       mono synth) */
+#endif
+#include "sh101_vcf.h"
+#endif
 
 #define VS_FS 44100u
 #define VS_CTL 16u                              /* the control block (frames): Synth1's own event grid */
@@ -170,6 +184,10 @@ typedef struct {
     int32_t dcut;                               /* .. the cutoff they are for (Q16 knob units) */
     int16_t dres;                               /* .. and the resonance (-1: none yet) */
 #endif
+#if VS_SH101
+    sh101_coef_t shc;                           /* SH-101 (type 5): coefficients at the block's end (cached), and state */
+    sh101_state_t shs;
+#endif
     int32_t f;                                  /* SVF f reached at the end of the last block, Q30 */
     int32_t vel_g;                              /* the velocity law's gain, Q15, and what it was worked out for */
     uint16_t vel_key;
@@ -209,6 +227,8 @@ typedef struct {
     vs_lfo_t lfo[2];                            /* LFO 1, LFO 2 (global, free running) */
     volatile uint32_t bpm_q8;                   /* the tempo, beats a minute Q8 (main loop; 120 until a MIDI clock sets it) */
     volatile uint8_t act;                       /* voices sounding (the ISR writes; the screen reads) */
+    volatile uint32_t pw_live, pw_seq;          /* P/W as a voice last played it while an LFO or the mod env moved it (Q32),
+                                                   and a count of the blocks that did: the OSC pages draw it (issue #3) */
 } vs_engine_t;
 
 void vs_engine_init(vs_engine_t *e);                                     /* before the first render */
