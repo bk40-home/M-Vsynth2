@@ -43,10 +43,12 @@ APP_SLOT = fm1pkg_make.APP_SLOT
 LOADER_LOAD = 0x01C0A800
 LOADER_NAME = b"usb_hid_ota.bin"    # the file name the SPL looks for
 DOCKER_IMAGE = os.environ.get("JIELI_DOCKER_IMAGE", "debian:bookworm-slim")
-CFLAGS = ["-Os", "-ffunction-sections", "-fno-builtin", "-Wall", "-Wno-unused-function",
-          "-mcpu=r3", "-mfprev1", "-ffp-contract=off", "-Werror=double-promotion"]   # the AC79's single-precision FPU
-          # (the SDK's flags, as fm-106 and Melodee; filter type 5 is float). No FMA on the chip: contraction off, so the
-          # host computes the same samples. No double hardware: an accidental double is an error, not a link failure.
+CFLAGS = ["-Os", "-ffunction-sections", "-fno-builtin", "-Wall", "-Wno-unused-function"]
+# The AC79's single-precision FPU (the SDK's flags, as fm-106 and Melodee): for the DSP only (vs_dsp.c, where filter
+# type 5's float code is). The platform, USB and the update loader keep the flags they were proven with: with the FPU
+# flags on everything, the FM-1 dropped off USB now and then (2026-11-17). No FMA on the chip: contraction off, so the
+# host computes the same samples. No double hardware: an accidental double is an error, not a link failure.
+FPU_FLAGS = ["-mcpu=r3", "-mfprev1", "-ffp-contract=off", "-Werror=double-promotion"]
             # keep -Os: with -O2 (unity
                                     # build, usb.c inside) the FM-1's USB-MIDI IN babbled on the device (OberVave, 2026-10-13)
 LINE = re.compile(r"^\s*([0-9a-f]+):\s+((?:[0-9a-f]{2} )+)\s*\t(.*)$")
@@ -183,7 +185,7 @@ def build_app():
             ("cc", "-c", FW / "hal" / "fm1_isr.S", "-o", OUT / "fm1_isr.o"),
             ("cc", *flags, "-c", FW / "src" / "mvsynth2.c", "-o", OUT / "mvsynth2.o"),
             # the DSP apart at -O2 (firmware/src/vs_dsp.c says why); the platform and the app stay at -Os
-            ("cc", *[f for f in flags if f != "-Os"], "-O2", "-c", FW / "src" / "vs_dsp.c", "-o", OUT / "vs_dsp.o")]
+            ("cc", *[f for f in flags if f != "-Os"], "-O2", *FPU_FLAGS, "-c", FW / "src" / "vs_dsp.c", "-o", OUT / "vs_dsp.o")]
     tc_all(*cmds)
     elf = OUT / "mvsynth2.elf"
     ld = FW / "app.ld"
