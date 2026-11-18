@@ -1,0 +1,23 @@
+# The screen reader (vs_speak.c, fm1-reader): silent until a reader says HELLO, then the screen; a page, a knob,
+# OCT+, PRESETS, the bank browser, SAVE (a character, then the write), and nothing after BYE.
+# tests/run_speak.sh runs it and checks the said log (MVS2_SAID_LOG) against tests/scripts/speak.expect
+50 btn 5
+100 sx F0 7D 53 52 01 01 F7
+600 btn 6
+1000 enc 2 1
+1500 btn 1
+2000 sx F0 7D 53 52 01 01 F7
+2100 enc 6 1
+2600 btn 11
+2900 enc 0 1
+3300 btn 7
+3700 btn 9
+3800 sx F0 7D 53 52 03 F7
+4000 sx F0 7D 53 52 01 01 F7
+4100 enc 4 -2
+4400 enc 5 1
+4900 btn 9
+5500 sx F0 7D 53 52 02 F7
+5600 btn 8
+6000 sx F0 7D 53 52 01 01 F7
+6500 end

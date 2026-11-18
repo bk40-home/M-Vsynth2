@@ -12,6 +12,7 @@ mkdir -p "$OUT"
 CF="-std=c99 -O2 -Wall -Wextra -Werror -pedantic -Ifirmware/src -Ifirmware/gen -Ifirmware/hal"
 S2=$(python3 -c "import sys; sys.path.insert(0, 'tools'); import synth2; print(synth2.root(False) or '')")
 python3 tools/gen_wave.py
+python3 tools/gen_words.py firmware/words.tsv docs/words firmware/gen/ann_words.h   # the screen reader's words (vs_speak.c)
 if [ -n "$S2" ]; then
     python3 tools/gen_params.py
     python3 tools/gen_tables.py | head -1
