@@ -1,0 +1,19 @@
+# tests/scripts/speak.txt's said log, in order: a line here is found in the next said line that holds it ("KIND<tab>text"
+# start; the rest of the line may run on). Lines between are allowed. SAVE is said once: WHERE (3800) replaces the page
+# change still settling (ann_say NOW drops what ann_later holds).
+HELLO	M-Vsynth2 
+MSG	LFO 1 PAGE 1 OF 2. WAVE
+MSG	OSC 1. SHAPE
+MSG	SHAPE
+MSG	OCTAVE UP 1
+HELLO	M-Vsynth2 
+MSG	FACTORY SLOT 2, 
+MSG	BANK FACTORY. 
+MSG	PAD PWM Raw, 3 OF 128
+MSG	VOICE. MODE
+MSG	SAVE TO U1 SLOT 3, 
+HELLO	M-Vsynth2 
+MSG	CURSOR 
+MSG	SAVED U1 SLOT 3, 
+HELLO	M-Vsynth2 
+MSG	HOME. U1 SLOT 3, 

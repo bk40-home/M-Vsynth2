@@ -23,7 +23,8 @@
  * MIDI in (USB or the TRS jack): notes (GLOBAL's channel, or any), velocity, the bend, CC 64, CC 120 / 123, program
  * change (a slot of the bank shown; an empty one is ignored, as in Synth2), bank select (CC 0: 0 FACTORY, 1..8),
  * channel pressure and every CC for the CTRL routes, the panel's CC map (proposal 8), clock (F8: the tempo while it
- * runs; else GLOBAL's TEMPO). Out: the keys' notes on channel 1. SysEx 7D: the transfer (vs_xfer.h).
+ * runs; else GLOBAL's TEMPO). Out: the keys' notes on channel 1. SysEx 7D 4D 56: the transfer (vs_xfer.h); 7D 53 52: the
+ * screen reader (vs_speak.c, fm1-reader: the screen as words, silent until a reader says HELLO).
  *
  * Rules of the road (the chip has no FPU and no libgcc): integers only, no float, no 64-bit division.
  * tests/host.c runs this file on a computer: the screen as a PNG, the sound as a WAV.
@@ -36,6 +37,7 @@ static void app_idle(void);
 static void app_sysex(const uint8_t *p, uint32_t n);
 #define LCD_IDLE app_idle                       /* while the screen's DMA runs: MIDI in (platform.c) */
 #define APP_SYSEX app_sysex
+#define SXQ 128u                                /* the SysEx send queue holds a whole screen-reader SAY (vs_speak.c; usb.c) */
 #include "platform.c"
 #include "vs_voice.h"                          /* the engine; its code is vs_dsp.c, built apart at -O2 */
 #include "vs_prog.c"                           /* the banks (main loop) */
@@ -124,8 +126,10 @@ static void prog_service(void)                  /* main loop: bring the slot ask
     for (i = VS_NAME; i > 0u && prog_name[i - 1u] == ' '; i--) prog_name[i - 1u] = 0;   /* (centred: no trailing spaces) */
 }
 
+static int ann_frame(const uint8_t *p, uint32_t n, uint32_t now);   /* the screen reader's (vs_speak.c, announce.c) */
 static void app_sysex(const uint8_t *p, uint32_t n)   /* platform_poll: main loop */
 {
+    if (ann_frame(p, n, fm1_ms)) return;        /* 7D 53 52: the screen reader (ours, the transfer, is 7D 4D 56) */
     if (!vs_xfer_rx(&xfer, &prog, p, n, eng.act == 0u)) return;
     xfer_t = fm1_ms ? fm1_ms : 1u;
     if (xfer.select_bank >= 0) {
@@ -217,6 +221,7 @@ static uint32_t home_page(uint32_t id)          /* the page a parameter is on (V
     return VS_NPAGE;
 }
 #include "vs_ui.c"                             /* the screens: knobs, graphs, themes */
+#include "vs_speak.c"                          /* the screen reader: the screen as words (fm1-reader, issue #1) */
 
 /* ---- MIDI */
 static void midi_in(void)
@@ -331,6 +336,9 @@ static void app_main(void)
     vs_prog_load(&prog, set.bank);
     slot = 0xFFFFu; slot_want = vs_prog_empty(&prog, set.slot) ? vs_prog_next(&prog, set.slot, 1) : set.slot;
     for (k = 0; k < 7u; k++) last_page[k] = 0;
+#ifdef DINGHY_HOST
+    if (getenv("MVS2_SPEAKDUMP")) { speak_dump(getenv("MVS2_SPEAKDUMP")); exit(0); }   /* tests/run_speak.sh */
+#endif
 
     for (;;) {
         uint32_t keys, down, up, rel, b, base = (uint32_t)(53 + 12 * set.oct), silent;
@@ -349,7 +357,7 @@ static void app_main(void)
         if (b & (1u << BTN_OCT_UP) && set.oct < 2) { set.oct++; set_dirty = 1; }
         if ((fm1_in.buttons & (1u << BTN_OCT_DOWN | 1u << BTN_OCT_UP)) == (1u << BTN_OCT_DOWN | 1u << BTN_OCT_UP)) {
             if (!panic_t) panic_t = fm1_ms ? fm1_ms : 1u;   /* both held 1 s: all notes off */
-            else if (fm1_ms - panic_t >= 1000u && panic_t != 1u) { vs_engine_all_off(&eng); panic_t = 1u; }
+            else if (fm1_ms - panic_t >= 1000u && panic_t != 1u) { vs_engine_all_off(&eng); panic_t = 1u; speak_panic(); }
         } else panic_t = 0;
         if (scr == SCR_SAVE && b & ~(1u << BTN_SAVE | 1u << BTN_OCT_DOWN | 1u << BTN_OCT_UP)) { scr = SCR_HOME; need_full = 1; b &= ~(1u << BTN_HOME); }
         for (k = 0; k < 6u; k++) if (b >> SEC_BTN[k] & 1u) section(k);
@@ -368,13 +376,15 @@ static void app_main(void)
                     if (prog.dirty && vs_prog_flush(&prog)) save_bank = prog.bank;   /* (failed: stays) */
                     else { vs_prog_load(&prog, save_bank); set.bank = prog.bank; }
                 }
-                if (!vs_prog_write(&prog, save_slot, &p)) {
+                const int ok = !vs_prog_write(&prog, save_slot, &p);
+                if (ok) {
                     slot = slot_want = save_slot; edited = 0; set.slot = (uint8_t)slot; set_dirty = 1;
                     for (i = 0; i < VS_NAME; i++) eng.patch.name[i] = prog_name[i] = save_name[i];
                     prog_name[VS_NAME] = 0;
                     for (i = VS_NAME; i > 0u && prog_name[i - 1u] == ' '; i--) prog_name[i - 1u] = 0;
                 }
                 scr = SCR_HOME; need_full = 1;
+                speak_saved(ok);                /* (after the screen is HOME: it is the answer, not cut off by HOME) */
             }
         }
         if ((e = fm1_enc_take(ENC_PRESETS)) != 0) {
@@ -469,6 +479,8 @@ static void app_main(void)
         if (scr != scr_drawn || (scr == SCR_PAGE && page != page_drawn)) { need_full = 1; scr_drawn = scr; page_drawn = page; }
         ui_draw(avg_us, peak_pc);
         need_full = 0;
+        speak();                                /* the screen reader: what changed (nothing while none listens) */
+        ann_tick(fm1_ms);
         idle_ok = 0;
     }
 }

@@ -1,0 +1,99 @@
+# M-Vsynth2's words for the screen reader (fm1-reader): the screen's text <TAB> what is said.
+# tools/gen_words.py firmware/words.tsv docs/words firmware/gen/ann_words.h  (tests/run_unit.sh runs it)
+# -> docs/words/<id>.json (published with the pages; never change or delete one: a device points at its own)
+#    firmware/gen/ann_words.h (the link the device sends). Whole words, capitals ignored, the longest match wins;
+# "#" takes a number and says it, "*" takes a word and leaves it out. The common ones (FX, ENV, LFO, RES, ...) are
+# gen_words.py's; an entry here says one differently. Check: sh tests/run_speak.sh
+# url: https://bk40-home.github.io/M-Vsynth2/words/
+
+# ---- the panel's labels (firmware/gen/vs_params.h VS_PARAMS, VS_FX_KNOB)
+ASSIGN1	assign 1
+ASSIGN2	assign 2
+BEND	bend range
+DEST	destination
+DRY/WET	dry wet
+FEEDBK	feedback
+FINE	fine tune
+KBDTRK	keyboard tracking
+KEYSHFT	key shift
+KEYSYNC	key sync
+M.DEST	modulation destination
+M.ENV	modulation envelope
+P/W	pulse width
+PORTA	portamento
+POLY #	polyphony #
+Q	Q
+SENS #	sensitivity #
+SRC #	source #
+CTRL #	control #
+VEL SW	velocity switch
+VEL	velocity
+LPF	low-pass filter
+FM	F M
+PAN	pan
+SAT	saturation
+FREQ	frequency
+
+# ---- the page titles (VS_PAGES)
+OSC #	oscillator #
+SUB OSC	sub oscillator
+OSC MIX	oscillators
+OSC COMMON	oscillator common
+MOD ENV	modulation envelope
+FILTER ENV	filter envelope
+AMP ENV	amp envelope
+FX SWITCH	effects switch
+EQ	equaliser
+
+# ---- the values (VS_CHOICE, VS_LFO_SYNC, VS_ARP_BEAT, VS_DLY_TIME, vs_param_text)
+TRI	triangle
+LP12	low-pass 12
+LP24	low-pass 24
+HP12	high-pass 12
+BP12	band-pass 12
+LPDL	low-pass diode ladder
+SH101	S H 101
+UP&DOWN	up and down
+1OCT	1 octave
+2OCT	2 octaves
+3OCT	3 octaves
+4OCT	4 octaves
+OSC2	oscillator 2
+OSC1+2	oscillators 1 and 2
+S&H	sample and hold
+1PH	1 phase
+2PH	2 phase
+3PH	3 phase
+4PH	4 phase
+AD1	analog distortion 1
+AD2	analog distortion 2
+DD	digital distortion
+DECI	decimator
+RM	ring modulator
+COMP	compressor
+PH#	phaser #
+TYPE ST	type stereo
+TYPE X	type cross
+TYPE PP	type ping-pong
+MIN	minimum
+PRESS	pressure
+# st	# semitones
+# ct	# cents
+1/1.	dotted whole
+1/2..	double dotted half
+1/4..	double dotted quarter
+1/8..	double dotted eighth
+1/64T	sixty-fourth triplet
+1 BAR	1 bar
+
+# ---- the screens (vs_speak.c)
+U#	user #
+CH #	channel #
+MIDI CH ANY	MIDI channel any
+CLOCK INT	clock internal
+CLOCK EXT	clock external
+COLOUR THEME	colour from the theme
+COLOUR PATCH	colour from the patch
+CRT	C R T
+DIAG	diagnostics
+NO NAME	no name

@@ -1,0 +1,2 @@
+# words the screen reader says that the audit's dictionary lacks (tests/run_speak.sh: tools/audit.mjs --allow)
+equaliser

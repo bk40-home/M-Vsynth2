@@ -115,6 +115,30 @@ The protocol: `firmware/src/vs_xfer.h`.
 The factory bank is a folder, `tools/bank/factory/`: `python3 tools/make_bank.py` turns its `.sy1` files into
 `firmware/gen/vs_factory.h`; rebuild the firmware after.
 
+## Screen reader
+
+M-Vsynth2 speaks its screen through [fm1-reader](https://github.com/charlesvestal/fm1-reader) by Charles Vestal (issue
+#1): plug the FM-1 in over USB and open the reader's page in Chrome or Edge. The page speaks with its own voice, or hands
+the words to VoiceOver, NVDA, JAWS or TalkBack. The FM-1 sends text and the page does the speaking, so nothing has to
+be installed on the computer.
+
+- **When the reader connects**, and on its WHERE, the whole screen: the page and its four knobs with their values, and
+  the patch.
+- **A new page or screen**, once page flipping settles: its name (FILTER PAGE 1 OF 2), then its knobs.
+- **A knob turning**: its name and value (FREQUENCY 64) once it settles, and at least every half second while it turns.
+  A CONTROL route says where it goes (ASSIGN 1 TO LFO 1 DEPTH).
+- **PRESETS, a program change, a bank**: the bank, slot and name. **SEQ**: the slot under the cursor and its place
+  (PAD PWM RAW, 3 OF 128).
+- **SAVE**: where it writes and what it replaces; KNOB 3 says the cursor and its character, KNOB 4 the character
+  (CAPITAL B, SMALL B, SPACE, DASH); the write says SAVED, or NOT SAVED as a warning.
+- **OCT- / OCT+** (OCTAVE UP 1), **all notes off**, the **HOME KNOBS** choices and **GLOBAL** pages.
+
+Nothing is sent until a reader says hello, so a DAW on the same port never sees a byte. The screen's short labels are
+said in full by the words file, `firmware/words.tsv` -> `docs/words/<id>.json` (published with the site; the device
+sends its link). After changing a label, run `python3 tools/gen_words.py firmware/words.tsv docs/words firmware/gen/ann_words.h`
+(tests/run_unit.sh does) and commit both. `sh tests/run_speak.sh` checks a session and audits every message with
+fm1-reader's `tools/audit.mjs` (clone fm1-reader next to this repository). The firmware side is `firmware/src/vs_speak.c`.
+
 ## Install
 
 **From the browser: the firmware page, `docs/flash/`** (the site's *Install the firmware*; Chrome or Edge on a
