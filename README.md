@@ -24,7 +24,7 @@ python3 tools/fm1_install.py build/mvsynth2.fwsc  # or .\flash.ps1 on Windows
 ```
 
 On the FM-1: the keys play; PRESETS picks the program; the section buttons open the pages (below); HOME's four knobs
-are FREQ, RES, AMOUNT (the filter envelope's) and GAIN. HOME shows the patch, a scope of what plays, and what it costs (CPU, PEAK); every screen shows the voices sounding
+are the patch's own (GLO's HOME KNOBS page; FREQ, RES, AMOUNT and GAIN unless set). HOME shows the patch, a scope of what plays, and what it costs (CPU, PEAK); every screen shows the voices sounding
 (the eight cells at the top right).
 MIDI in plays it too (notes, bend, the sustain pedal, program change, bank select, clock, and a CC for every knob).
 
@@ -57,8 +57,8 @@ of 16 bits. LFOs, the mod env, pitch, P/W and FM move every sample, as in Synth2
 
 Synth1's sections are pages on the FM-1's screen. A section button opens its first page, again the next (it loops);
 KNOB 1–4 edit the four columns, left to right; SELECT steps the knob touched last; ALGORITHM walks every page;
-PRESETS picks the program; HOME goes home. On HOME the four knobs are FREQ, RES, AMOUNT and GAIN, over a voice strip,
-CPU, the tempo and the octave.
+PRESETS picks the program; HOME goes home. On HOME the four knobs are the patch's HOME KNOBS (GLO, below), over a voice
+strip, CPU, the tempo and the octave.
 
 | Button | Pages |
 | --- | --- |
@@ -67,10 +67,10 @@ CPU, the tempo and the octave.
 | **ENV** | MOD ENV, FILTER ENV, AMP ENV |
 | **SEL** | FILTER (2 pages), AMP |
 | **FX** | FX SWITCH (EFFECT, DELAY, CHORUS on / off), EFFECT, EQ, DELAY (2 pages), CHORUS (2 pages) |
-| **GLO** | VOICE, UNISON (2 pages), CONTROL (2 pages), GLOBAL (MIDI CH, VOICES, TEMPO; CLOCK reads INT or EXT), GLOBAL 2/2 (THEME, COLOUR) |
+| **GLO** | VOICE, UNISON (2 pages), CONTROL (2 pages), HOME KNOBS (which parameter each of HOME's four knobs turns: kept with the patch, so SAVE keeps it; a `.sy1`, or a patch sent without them, gets FREQ, RES, AMOUNT, GAIN), GLOBAL 1/3 (MIDI CH, VOICES, TEMPO; CLOCK reads INT or EXT), GLOBAL 2/3 (THEME, COLOUR), GLOBAL 3/3 (DIAG) |
 | **ARP** | tap: the arp on / off; hold 0.4 s: ARP |
 | **SEQ** | BANK: KNOB 1 the bank (FACTORY, U1 .. U8), SELECT or PRESETS its 128 slots; the patch under the cursor plays |
-| **SAVE** | its screen: KNOB 1 the bank (U1 .. U8), KNOB 2 the slot (it shows what is there), KNOB 3 the cursor in the name and KNOB 4 (or SELECT) the character under it; SAVE again writes, any other button leaves. The bank goes to flash once nothing sounds |
+| **SAVE** | its screen: KNOB 1 the bank (U1 .. U8), KNOB 2 the slot (it shows what is there, in any bank: REPLACES and its name, or EMPTY SLOT), KNOB 3 the cursor in the name and KNOB 4 (or SELECT) the character under it; SAVE again writes, any other button leaves. The bank goes to flash once nothing sounds |
 | **OCT- OCT+** | the octave; both held 1 s: all notes off |
 
 Every knob, range and choice: the cheat sheet (`docs/cheatsheet.html`), generated from the firmware's own page table.
@@ -81,7 +81,7 @@ does, drawn from the patch (the filter's response, the envelope's shape, the wav
 echoes, the signal path...); the four knobs, in the order of KNOB 1..4; the program at the foot. A knob shows its kind:
 an arc from the start (a value), from the top (a signed value), a segment a choice, or a switch. The knob in hand turns
 to the accent colour for 1.5 s, with its value large on the graph. FREQ's thin outer arc is the span the filter
-envelope adds. Six themes (SEA, EMBER, ICE, ORCHID, CRT, PAPER) on GLOBAL 2/2; COLOUR PATCH takes each patch's `.sy1`
+envelope adds. Six themes (SEA, EMBER, ICE, ORCHID, CRT, PAPER) on GLOBAL 2/3; COLOUR PATCH takes each patch's `.sy1`
 colour as the theme's own.
 
 ## Patches to and from a computer

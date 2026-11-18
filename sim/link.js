@@ -5,7 +5,8 @@
 // Both run the same firmware, so both speak vs_xfer.h's link:
 //   LINK  07       the device answers with EDIT (what plays) and from then on reports every change as an EDIT,
 //                  for 30 s after the last LINK (renewed here every RENEW_MS)
-//   EDIT  17 rec   what plays on the device (the 138-byte packed record, as the patch library's DATA)
+//   EDIT  17 rec hk  what plays on the device (the 138-byte packed record, then HOME's 4 knob bytes, as DATA);
+//                  passed on whole as a PLAY, which takes them
 //   PLAY  03 rec   sets what plays on a device, acknowledged (ACK 7F 03 00 00 st); the device then knows the page
 //                  has it, so it is not reported back
 // The page keeps `cur` (the sound both should have) and, a device at a time, what it knows each has:

@@ -191,6 +191,31 @@ static void ptext(uint32_t id, char *s, uint32_t cap)
     vs_param_text(id, pval(id), lfo ? pval(lfo) != 0 : 0, pval(VS_P_FX_TYPE), s, cap);
 }
 static uint32_t pc_voice, pc_bus;                /* the split: voices, bus, % of the buffer's time */
+
+/* HOME KNOBS (GLO, Kris 18 Nov): what HOME's KNOB 1..4 turn, kept with the patch (eng.patch.home, vs_patch.h). A
+ * knob there steps through the parameters a HOME knob may take, in page order (LFO 1 .. ARP, as ALGORITHM walks
+ * them), then any on no page (ARP's on/off, on its button) */
+static uint8_t home_list[VS_NPARAM], home_n;
+static void home_list_build(void)
+{
+    uint8_t seen[VS_NPARAM];
+    uint32_t k, c;
+    for (k = 0; k < VS_NPARAM; k++) seen[k] = 0;
+    home_n = 0;
+    for (k = 0; k < VS_NPAGE; k++)
+        for (c = 0; c < 4u; c++) {
+            const uint32_t id = VS_PAGES[k].id[c];
+            if (id < VS_NPARAM && !seen[id] && vs_home_ok(id)) { seen[id] = 1; home_list[home_n++] = (uint8_t)id; }
+        }
+    for (k = 0; k < VS_NPARAM; k++) if (!seen[k] && vs_home_ok(k)) home_list[home_n++] = (uint8_t)k;
+}
+static uint32_t home_pos(uint32_t id) { uint32_t i; for (i = 0; i < home_n; i++) if (home_list[i] == id) return i; return 0; }
+static uint32_t home_page(uint32_t id)          /* the page a parameter is on (VS_NPAGE: none, ARP's on/off) */
+{
+    uint32_t k, c;
+    for (k = 0; k < VS_NPAGE; k++) for (c = 0; c < 4u; c++) if (VS_PAGES[k].id[c] == id) return k;
+    return VS_NPAGE;
+}
 #include "vs_ui.c"                             /* the screens: knobs, graphs, themes */
 
 /* ---- MIDI */
@@ -239,12 +264,12 @@ static void section(uint32_t btn)               /* a section button: open its pa
     if (scr == SCR_PAGE && VS_PAGES[page].btn == btn) {
         i = page + 1u;
         if (i >= VS_NPAGE || VS_PAGES[i].btn != btn) {
-            if (btn == VS_BTN_GLO) { scr = SCR_GLOBAL; gpage = 0; col = 0; need_full = 1; return; }
+            if (btn == VS_BTN_GLO) { scr = SCR_GLOBAL; gpage = GP_KNOBS; col = 0; need_full = 1; return; }
             i = first;
         }
         open_page(i);
     } else if (scr == SCR_GLOBAL && btn == VS_BTN_GLO) {
-        if (gpage < 2u) { gpage++; col = 0; need_full = 1; return; }   /* GLOBAL 1/3, 2/3 (THEME, COLOUR), 3/3 (DIAG) */
+        if (gpage + 1u < GP_N) { gpage++; col = 0; need_full = 1; return; }   /* HOME KNOBS, GLOBAL 1/3, 2/3, 3/3 */
         open_page(first);
     }
     else open_page(VS_PAGES[last_page[btn]].btn == btn ? last_page[btn] : first);
@@ -265,8 +290,16 @@ static void edit(uint32_t id, int32_t e)
 static void global_edit(uint32_t k, int32_t e)
 {
     int32_t v;
-    if (gpage == 2u) return;                    /* GLOBAL 3/3: DIAG, read only */
-    if (gpage) {                                /* GLOBAL 2/3: THEME, COLOUR (vs_ui.c applies them) */
+    if (gpage == GP_DIAG) return;               /* GLOBAL 3/3: DIAG, read only */
+    if (gpage == GP_KNOBS) {                    /* HOME KNOBS: the patch's, so it is edited (SAVE keeps it) */
+        if (k >= VS_HOME_N || !home_n) return;
+        v = (int32_t)home_pos(eng.patch.home[k]) + e;
+        eng.patch.home[k] = home_list[v < 0 ? 0 : v >= (int32_t)home_n ? (int32_t)home_n - 1 : v];
+        edited = 1;
+        ui_gtouch();
+        return;
+    }
+    if (gpage == GP_LOOK) {                     /* GLOBAL 2/3: THEME, COLOUR (vs_ui.c applies them) */
         if (k == 0u) { v = set.theme + e; set.theme = (uint8_t)(v < 0 ? 0 : v >= (int32_t)UI_NTHEME ? (int32_t)UI_NTHEME - 1 : v); }
         else if (k == 1u) set.colour = e > 0;
         else return;
@@ -294,6 +327,7 @@ static void app_main(void)
         set.ch = 0; set.voices = VS_NV; set.tempo = 120; set.bank = 0; set.slot = 0; set.oct = 0; set.theme = 0; set.colour = 0;
     }
     eng.nv = set.voices;
+    home_list_build();
     vs_prog_load(&prog, set.bank);
     slot = 0xFFFFu; slot_want = vs_prog_empty(&prog, set.slot) ? vs_prog_next(&prog, set.slot, 1) : set.slot;
     for (k = 0; k < 7u; k++) last_page[k] = 0;
@@ -360,7 +394,7 @@ static void app_main(void)
         for (k = 0; k < 4u; k++)
             if ((e = fm1_enc_take(ENC_KNOB1 + k)) != 0) {
                 if (scr == SCR_PAGE && VS_PAGES[page].id[k] != 0xFFu) { edit(VS_PAGES[page].id[k], e); col = k; }
-                else if (scr == SCR_HOME) { static const uint8_t KN[4] = {VS_P_FLT_FREQ, VS_P_FLT_RES, VS_P_FLT_AMOUNT, VS_P_AMP_GAIN}; edit(KN[k], e); }
+                else if (scr == SCR_HOME) edit(eng.patch.home[k], e);   /* (the patch's HOME KNOBS) */
                 else if (scr == SCR_BANK && k == 0u) { int32_t nb = (int32_t)prog.bank + e; bank_want = nb < 0 ? 0 : nb > (int32_t)VS_NBANK ? (int32_t)VS_NBANK : nb; need_full = 1; }
                 else if (scr == SCR_SAVE && k == 0u) { int32_t nb = (int32_t)save_bank + e; save_bank = (uint32_t)(nb < 1 ? 1 : nb > (int32_t)VS_NBANK ? (int32_t)VS_NBANK : nb); }
                 else if (scr == SCR_SAVE && k == 1u) save_slot = (save_slot + 128u + (uint32_t)e) & 127u;

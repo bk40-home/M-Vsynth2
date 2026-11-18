@@ -52,13 +52,13 @@ small{{color:#888}}.t{{font-weight:600}}.cols{{columns:2}}@media print{{body{{ma
 </style></head><body>
 <h1>M-Vsynth2</h1><p>Synth2 (the open-source Synth1) on the M-VAVE FM-1. Every patch parameter is on a page; the number is its <code>.sy1</code> index.</p>
 <h2>Buttons</h2><table>
-<tr><th>LFO EDIT ENV SEL FX GLO</th><td>a section: the first press opens its page, the next steps through them (GLO ends on GLOBAL: MIDI CH, VOICES, TEMPO; then GLOBAL 2/2: THEME, COLOUR)</td></tr>
+<tr><th>LFO EDIT ENV SEL FX GLO</th><td>a section: the first press opens its page, the next steps through them (GLO ends on HOME KNOBS, the patch's choice of HOME's four knobs; then GLOBAL 1/3: MIDI CH, VOICES, TEMPO; 2/3: THEME, COLOUR; 3/3: DIAG)</td></tr>
 <tr><th>ARP</th><td>tap: the arp on / off; hold: the ARP page</td></tr>
-<tr><th>KNOB 1..4</th><td>the page's four columns (HOME: FREQ, RES, AMOUNT, GAIN)</td></tr>
+<tr><th>KNOB 1..4</th><td>the page's four columns (HOME: the patch's HOME KNOBS; FREQ, RES, AMOUNT, GAIN unless set)</td></tr>
 <tr><th>SELECT</th><td>the column last turned, one step at a time</td></tr><tr><th>ALGORITHM</th><td>every page in turn</td></tr>
 <tr><th>PRESETS</th><td>the program (slots that hold a patch)</td></tr><tr><th>HOME</th><td>the home screen</td></tr>
 <tr><th>SEQ</th><td>the bank browser (K1 the bank; turning plays the slot)</td></tr>
-<tr><th>SAVE</th><td>the save screen (K1 bank U1..U8, K2 slot, K3 the cursor in the name, K4 or SELECT its character); SAVE again writes, any other button leaves</td></tr>
+<tr><th>SAVE</th><td>the save screen (K1 bank U1..U8, K2 slot: it shows what it replaces, K3 the cursor in the name, K4 or SELECT its character); SAVE again writes, any other button leaves</td></tr>
 <tr><th>OCT- OCT+</th><td>the octave</td></tr></table>
 <h2>Pages</h2><table><tr><th>Button</th><th>Page</th><th>KNOB 1</th><th>KNOB 2</th><th>KNOB 3</th><th>KNOB 4</th></tr>
 {''.join(rows)}</table>

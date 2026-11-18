@@ -429,7 +429,7 @@ static void ui_cells_param(const uint8_t ids[4])
 
 /* ---- the panel's graphs */
 enum { G_NONE, G_LFO1, G_LFO2, G_OSC1, G_SUB, G_OSC2, G_MIX, G_MENV, G_FENV, G_AENV, G_FILT, G_AMP, G_CHAIN, G_EFFECT,
-       G_EQ, G_DELAY, G_CHORUS, G_VOICE, G_UNISON, G_CTRL, G_ARP, G_HOME, G_SAVE, G_GLOB1, G_GLOB2, G_GLOB3 };
+       G_EQ, G_DELAY, G_CHORUS, G_VOICE, G_UNISON, G_CTRL, G_ARP, G_HOME, G_SAVE, G_GLOB1, G_GLOB2, G_GLOB3, G_KNOBS };
 
 static int32_t P(uint32_t id) { return pval(id); }
 static int32_t clampi(int32_t v, int32_t lo, int32_t hi) { return v < lo ? lo : v > hi ? hi : v; }
@@ -975,13 +975,37 @@ static void g_save(void)
     }
     p = put_s(s, "TO  "); p = put_s(p, vs_prog_bank_name(save_bank)); *p++ = ' '; p = put_3(p, save_slot + 1u); *p = 0;
     txt_fit(120, PY0 + 28, 220, &FONT_TTL, s, T.theme, 1);
-    if (save_bank == prog.bank) {
-        p = s;
-        if (vs_prog_empty(&prog, save_slot)) p = put_s(p, "the slot is empty");
-        else { p = put_s(p, "replaces  "); for (k = 0; k < VS_NAME; k++) *p++ = (char)prog.r[save_slot].b[k]; }
+    {   /* what the slot holds, in any bank (Kris 18 Nov): its name in WARN, so an overwrite is seen before SAVE */
+        char nm[VS_NAME];
+        const int full = vs_prog_peek_name(&prog, save_bank, save_slot, nm);
+        uint32_t n = 0;
+        if (full) for (n = VS_NAME; n > 0u && nm[n - 1u] == ' '; n--) {}   /* (no trailing spaces: centred) */
+        p = put_s(s, full ? "REPLACES  " : "EMPTY SLOT");
+        for (k = 0; k < n; k++) *p++ = nm[k];
         *p = 0;
-    } else { p = put_s(s, "the bank loads on save"); *p = 0; }
-    txt_fit(120, PY0 + 52, 220, &FONT_VAL, s, T.dim, 1);
+        txt_fit(120, PY0 + 52, 220, &FONT_VAL, s, full ? T.warn : T.dim, 1);
+    }
+    if (save_bank != prog.bank) txt_fit(120, PY0 + 72, 220, &FONT_LAB, "the bank loads on save", T.dim, 1);
+}
+
+/* HOME KNOBS (GLO): the four rows, KNOB n, the page it is on, the parameter; "DEFAULT" where it is that knob's own */
+static void g_knobs(void)
+{
+    char s[32], *p;
+    uint32_t c;
+    for (c = 0; c < VS_HOME_N; c++) {
+        const uint32_t id = eng.patch.home[c], pg = home_page(id);
+        const int32_t y = PY0 - 6 + (int32_t)c * 20;
+        const int hot = ui_ghot(c);
+        if (hot) rrect(PX0 - 4, y - 2, PW + 8, 18, 3, T.raised);
+        s[0] = (char)('1' + c); s[1] = 0;
+        txt(PX0 + 2, y, &FONT_TTL, s, hot ? T.accent : T.theme);
+        p = put_s(s, pg < VS_NPAGE ? VS_PAGES[pg].title : "ARP"); p = put_s(p, "  "); *p = 0;
+        txt(PX0 + 20, y + 2, &FONT_LAB, s, T.dim);
+        txt(PX0 + 20 + text_w(&FONT_LAB, s), y, &FONT_VAL, vs_param_label(id, pval(VS_P_FX_TYPE)), hot ? T.accent : T.text);
+        if (id == vs_home_default(c)) txt(PX0 + PW - 2 - text_w(&FONT_LAB, "DEFAULT"), y + 2, &FONT_LAB, "DEFAULT", T.dim);
+    }
+    txt(PX0 + 2, PY1 - 12, &FONT_LAB, "KEPT WITH THE PATCH: SAVE TO KEEP", T.dim);
 }
 
 static void g_glob1(void)
@@ -1063,6 +1087,7 @@ static void ui_panel_render(uint32_t kind)
     case G_GLOB1: g_glob1(); break;
     case G_GLOB2: g_glob2(); break;
     case G_GLOB3: g_glob3(); break;
+    case G_KNOBS: g_knobs(); break;
     default: break;
     }
     if (kind != G_HOME && kind != G_SAVE && kind != G_CHAIN && kind != G_CTRL && kind < G_GLOB1) readout();   /* (the path and the routes say it) */
@@ -1120,7 +1145,10 @@ static uint32_t page_kind(uint32_t p)
 }
 
 static const char *const BTN_NAME[7] = {"LFO", "EDIT", "ENV", "SEL", "FX", "GLO", "ARP"};
-static uint32_t gpage;                          /* GLOBAL: 0 MIDI CH, VOICES, TEMPO, CLOCK; 1 THEME, COLOUR; 2 DIAG */
+/* GLO's pages after the patch's: HOME KNOBS (the patch's, Kris 18 Nov), then GLOBAL 1/3 MIDI CH, VOICES, TEMPO,
+ * CLOCK; 2/3 THEME, COLOUR; 3/3 DIAG */
+enum { GP_KNOBS, GP_MAIN, GP_LOOK, GP_DIAG, GP_N };
+static uint32_t gpage;
 
 /* the footer of a patch page: bank and slot, the name, the tempo (or the transfer, or the bank unsaved) */
 /* the footer, every screen: the patch's name only (edited: in WARN); on the right only what needs seeing now, a
@@ -1141,7 +1169,7 @@ static void ui_draw_page(void)
     uint32_t k, n = 0, i = 0, key = ui_patch_key(), ms = 40u;
     const uint32_t kind = page_kind(page);
     for (k = 0; k < VS_NPAGE; k++) if (VS_PAGES[k].btn == pg->btn) { if (k == page) i = n; n++; }
-    if (pg->btn == VS_BTN_GLO) n += 2u;         /* GLOBAL's two pages close the GLO walk */
+    if (pg->btn == VS_BTN_GLO) n += GP_N;       /* HOME KNOBS and GLOBAL's pages close the GLO walk */
     ui_head(BTN_NAME[pg->btn], T.theme, pg->title, n, i);
     if (kind == G_LFO1 || kind == G_LFO2) {    /* the dot moves: 12 frames a second while the LFO runs */
         const uint32_t l = kind == G_LFO2;
@@ -1157,7 +1185,6 @@ static void ui_draw_page(void)
 
 static void ui_draw_home(void)
 {
-    static const uint8_t KN[4] = {VS_P_FLT_FREQ, VS_P_FLT_RES, VS_P_FLT_AMOUNT, VS_P_AMP_GAIN};
     static uint32_t quiet, flat;
     uint32_t key = hsh(hsh(ui_patch_key(), prog.bank << 8 | slot), (uint32_t)edited << 16 ^ (uint32_t)(uint8_t)prog_name[0] << 8 ^ (uint8_t)prog_name[1]);
     key = hsh(key, (uint32_t)eng.nv << 8 ^ (uint32_t)(set.oct + 4));
@@ -1180,7 +1207,7 @@ static void ui_draw_home(void)
     }
     ui_head("HOME", T.theme, APP_NAME, 0, 0);
     ui_panel(G_HOME, key, need_full ? 0u : 80u);
-    ui_cells_param(KN);
+    ui_cells_param(eng.patch.home);             /* the patch's HOME KNOBS */
     ui_foot_prog();
 }
 
@@ -1218,13 +1245,27 @@ static void ui_draw_global(void)
     const int ext = clk_t && fm1_ms - clk_t < 1000u;
     k.mod = 0; k.c = 0; k.n = 0; k.idx = 0;
     ui_head("GLO", T.theme, "GLOBAL", 0, 0);
-    {   /* the pips: GLO's patch pages, then GLOBAL's two */
+    {   /* the pips: GLO's patch pages, then HOME KNOBS and GLOBAL's three */
         uint32_t n = 0, j;
-        for (j = 0; j < VS_NPAGE; j++) if (VS_PAGES[j].btn == VS_BTN_GLO) n++;
         k_head = 0;
-        ui_head("GLO", T.theme, "GLOBAL", n + 3u, n + gpage);
+        for (j = 0; j < VS_NPAGE; j++) if (VS_PAGES[j].btn == VS_BTN_GLO) n++;
+        ui_head("GLO", T.theme, gpage == GP_KNOBS ? "HOME KNOBS" : "GLOBAL", n + GP_N, n + gpage);
     }
-    if (!gpage) {
+    if (gpage == GP_KNOBS) {
+        uint32_t c, h = 0;
+        for (c = 0; c < VS_HOME_N; c++) h = hsh(h, eng.patch.home[c] | (uint32_t)ui_ghot(c) << 8);
+        ui_panel(G_KNOBS, hsh(h, (uint32_t)pval(VS_P_FX_TYPE)), 0u);
+        for (c = 0; c < VS_HOME_N; c++) {
+            static const char *const KL[VS_HOME_N] = {"KNOB 1", "KNOB 2", "KNOB 3", "KNOB 4"};
+            const uint32_t id = eng.patch.home[c];
+            const char *lab = vs_param_label(id, pval(VS_P_FX_TYPE));
+            uint32_t i;
+            k.hot = (uint8_t)ui_ghot(c); k.w = W_VALUE; k.v = ang_of((int32_t)home_pos(id), 0, (int32_t)home_n - 1); k.lab = KL[c];
+            for (i = 0; lab[i] && i < sizeof k.val - 1u; i++) k.val[i] = lab[i];
+            k.val[i] = 0;
+            ui_cell(c, &k);
+        }
+    } else if (gpage == GP_MAIN) {
         ui_panel(G_GLOB1, hsh(hsh(set.voices, set.ch), (uint32_t)ext << 16 ^ eng.bpm_q8 >> 8), 0u);
         k.hot = (uint8_t)ui_ghot(0); k.w = W_VALUE; k.v = ang_of(set.ch, 0, 16); k.lab = "MIDI CH";
         p = set.ch ? put_u(k.val, set.ch) : put_s(k.val, "ANY"); *p = 0;
@@ -1238,7 +1279,7 @@ static void ui_draw_global(void)
         k.hot = 0; k.w = W_READ; k.v = 0; k.lab = "CLOCK";
         p = put_s(k.val, ext ? "EXT" : "INT"); *p = 0;
         ui_cell(3, &k);
-    } else if (gpage == 2u) {                   /* DIAG: the meters, read only; redrawn twice a second */
+    } else if (gpage == GP_DIAG) {              /* DIAG: the meters, read only; redrawn twice a second */
         const uint32_t key = hsh(hsh(hsh(dg_avg, dg_peak << 8 ^ pc_voice << 16 ^ pc_bus << 24), eng.shed),
                                  (uint32_t)vs_core1_online() ^ (uint32_t)ext << 1 ^ eng.bpm_q8 >> 6);
         ui_panel(G_GLOB3, key, need_full ? 0u : 500u);

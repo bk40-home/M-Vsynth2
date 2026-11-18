@@ -266,6 +266,17 @@ static int blob_save(uint32_t i, const void *p, uint32_t n) { return i < NBLOB ?
 #define SLOT_MAGIC 0x544F4C53u                  /* "SLOT" */
 static int slot_load(uint32_t i, void *p, uint32_t n) { return i < NSLOT ? area_load(SLOTS_AT + i * SLOT_SECT * 0x1000u, SLOT_MAX, SLOT_MAGIC ^ STORE_MAGIC, p, n) : -1; }
 static int slot_save(uint32_t i, const void *p, uint32_t n) { return i < NSLOT ? area_save(SLOTS_AT + i * SLOT_SECT * 0x1000u, SLOT_SECT, SLOT_MAGIC ^ STORE_MAGIC, p, n) : -1; }
+/* n bytes at off of what slot i holds, a glance without loading it (no CRC check: for showing, e.g. a name; what is
+ * used comes through slot_load). -1: never saved, not ours, or off + n past what was saved */
+static int slot_peek(uint32_t i, uint32_t off, void *p, uint32_t n)
+{
+    uint32_t h[3];
+    const uint32_t at = SLOTS_AT + i * SLOT_SECT * 0x1000u;
+    if (i >= NSLOT || !flash_ok || st_read(at, h, sizeof h) || h[0] != (SLOT_MAGIC ^ STORE_MAGIC) || h[1] > SLOT_MAX ||
+        off > h[1] || n > h[1] - off)
+        return -1;
+    return st_read(at + sizeof h + off, p, n) ? -1 : 0;
+}
 /* one sector k (0..SLOT_SECT-1) of slot i on its own, up to SECTOR_MAX bytes (M-vance's clips, Kris 6 Nov): for
  * something smaller than a slot that is saved often, one erase (~50 ms) a save, not SLOT_SECT. Its own magic: a
  * slot saved whole over it (or the other way) reads as nothing, never as the other's data */

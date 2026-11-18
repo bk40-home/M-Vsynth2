@@ -23,6 +23,29 @@ void vs_patch_init(vs_patch_t *p)
     for (i = 0; i < VS_NPARAM; i++) p->v[i] = VS_PARAMS[i].init;
     for (i = 0; i < VS_NAME; i++) p->name[i] = NAME[i];
     p->color = 2u;                              /* blue, as Synth2's INIT */
+    vs_home_set(p, 0);
+}
+
+/* ---- HOME's knobs (vs_patch.h) */
+uint8_t vs_home_default(uint32_t k)
+{
+    static const uint8_t DEF[VS_HOME_N] = {VS_P_FLT_FREQ, VS_P_FLT_RES, VS_P_FLT_AMOUNT, VS_P_AMP_GAIN};
+    return DEF[k < VS_HOME_N ? k : 0u];
+}
+int vs_home_ok(uint32_t id)
+{
+    return id < VS_NPARAM && VS_PARAMS[id].kind != VS_K_SRC && VS_PARAMS[id].kind != VS_K_DST;
+}
+void vs_home_set(vs_patch_t *p, const uint8_t *b)
+{
+    uint32_t k;
+    for (k = 0; k < VS_HOME_N; k++) p->home[k] = b && vs_home_ok(b[k]) ? b[k] : vs_home_default(k);
+}
+void vs_home_get(const vs_patch_t *p, uint8_t *b)
+{
+    uint32_t k;
+    for (k = 0; k < VS_HOME_N; k++)
+        b[k] = !vs_home_ok(p->home[k]) || p->home[k] == vs_home_default(k) ? (uint8_t)VS_HOME_DEF : p->home[k];
 }
 
 void vs_param_set(vs_patch_t *p, uint32_t id, int32_t v)
@@ -45,6 +68,8 @@ uint32_t vs_patch_sanitize(vs_patch_t *p)
     for (i = 0; i < VS_NAME; i++)
         if (p->name[i] < 32 || p->name[i] > 126) p->name[i] = ' ';
     if (p->color >= VS_NCOLOR) p->color = 0;
+    for (i = 0; i < VS_HOME_N; i++)
+        if (!vs_home_ok(p->home[i])) p->home[i] = vs_home_default(i);
     return n;
 }
 
@@ -79,6 +104,7 @@ int vs_patch_unpack(const vs_rec_t *r, vs_patch_t *p)
         p->v[ROUTE_ID[i]] = w == 0xFFFFu ? -1 : (int32_t)w;
     }
     p->color = r->b[REC_COLOR];
+    vs_home_set(p, 0);                          /* (not in the record: the caller sets them when it has them) */
     vs_patch_sanitize(p);
     return 0;
 }

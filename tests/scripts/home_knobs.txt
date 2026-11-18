@@ -1,0 +1,37 @@
+# HOME KNOBS (GLO, Kris 18 Nov) and SAVE's "REPLACES" in any bank. FM-1 ids: enc KNOB1..4 2..5; buttons 7 GLO,
+# 8 HOME, 9 SAVE, 11 SEQ (as tests/scripts/ui.txt)
+#   tests/run_host.sh tests/scripts/home_knobs.txt
+# shots: 0 HOME, the default knobs; 1 HOME KNOBS, default; 2 HOME KNOBS, knob 1 and 4 moved; 3 HOME with them;
+#        4 SAVE to an empty U1 slot; 5 SAVE into U1 again (in RAM): REPLACES; 6 FACTORY in RAM, SAVE to U1: REPLACES
+#        from flash, "the bank loads on save"; 7 HOME after reloading U1 001: the saved knobs
+100 shot
+300 btn 7
+400 btn 7
+500 btn 7
+600 btn 7
+700 btn 7
+800 btn 7
+1000 shot
+1100 enc 2 -30
+1200 enc 5 3
+1300 enc 4 -1
+1500 shot
+1600 btn 8
+1800 shot
+1900 btn 9
+2100 shot
+2200 btn 9
+2400 btn 9
+2600 shot
+2700 btn 8
+3500 btn 11
+3600 enc 2 -1
+3800 btn 8
+4000 btn 9
+4200 shot
+4300 btn 8
+4400 btn 11
+4500 enc 2 1
+4800 btn 8
+5000 shot
+5200 end

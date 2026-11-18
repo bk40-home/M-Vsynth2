@@ -32,7 +32,7 @@ static int edit_n;
 void wsim_sysex_out(const uint8_t *p, int n)
 {
     if (n >= 6 && p[4] == 0x15 && n <= 64) { memcpy(ident, p, (size_t)n); ident_n = n; }
-    if (n == 145 && p[4] == 0x17) { memcpy(edit[edit_n & 1], p, 145); edit_n++; }   /* an EDIT (the link) */
+    if (n == 149 && p[4] == 0x17) { memcpy(edit[edit_n & 1], p, 149); edit_n++; }   /* an EDIT (the link) */
 }
 static void ok(int c, const char *what) { checks++; if (!c) { fails++; printf("FAIL %s\n", what); } else printf("ok   %s\n", what); }
 static float peak(void)                     /* drain the ring as the page does: the loudest sample */
@@ -77,7 +77,7 @@ void wsim_test_yield(void)
     }
     if (steps == 1100) { ok(edit_n == 1, "LINK is answered with one EDIT (what plays)"); wsim_enc(2, 4); return; }
     if (steps == 1160) {
-        ok(edit_n == 2 && memcmp(edit[0], edit[1], 145) != 0, "a knob turned while linked: one EDIT with the change");
+        ok(edit_n == 2 && memcmp(edit[0], edit[1], 149) != 0, "a knob turned while linked: one EDIT with the change");
         printf("%u checks, %u failed\n", checks, fails);
         exit(fails ? 1 : 0);
     }

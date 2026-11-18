@@ -138,6 +138,14 @@ static int blob_load(uint32_t i, void *p, uint32_t n) { return i < NBLOB ? host_
 static int blob_save(uint32_t i, const void *p, uint32_t n) { return i < NBLOB ? host_save(host_blob[i], SECTOR_MAX, p, n, "blob", i) : -1; }
 static int slot_load(uint32_t i, void *p, uint32_t n) { return i < NSLOT ? host_load(host_slot[i], SLOT_MAX, p, n) : -1; }
 static int slot_save(uint32_t i, const void *p, uint32_t n) { return i < NSLOT ? host_save(host_slot[i], SLOT_MAX, p, n, "slot", i) : -1; }
+static int slot_peek(uint32_t i, uint32_t off, void *p, uint32_t n)   /* (platform.c's: part of what was saved) */
+{
+    const uint8_t *a = i < NSLOT ? host_slot[i] : 0;
+    const uint32_t len = a ? (uint32_t)(a[1] | a[2] << 8 | a[3] << 16) : 0u;
+    if (!a || !a[0] || off > len || n > len - off) return -1;
+    memcpy(p, a + 4 + off, n);
+    return 0;
+}
 /* a slot's sector on its own (platform.c slot_sec_*): kept apart from host_slot here (on the chip they share the
  * flash; no firmware uses both on one slot) */
 static uint8_t host_ssec[NSLOT][SLOT_SECT][SECTOR_MAX + 4];

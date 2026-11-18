@@ -8,8 +8,10 @@
 #define VS_NV 8u
 static uint8_t flash[8][16384];
 static int flash_ok[8];
-static int slot_load(uint32_t i, void *p, uint32_t n) { if (i >= 8u || !flash_ok[i]) return -1; memcpy(p, flash[i], n); return 0; }
-static int slot_save(uint32_t i, const void *p, uint32_t n) { if (i >= 8u) return -1; memcpy(flash[i], p, n); flash_ok[i] = 1; return 0; }
+static uint32_t flash_n[8];                     /* the length saved: a load must ask for it, as platform.c's */
+static int slot_load(uint32_t i, void *p, uint32_t n) { if (i >= 8u || !flash_ok[i] || flash_n[i] != n) return -1; memcpy(p, flash[i], n); return 0; }
+static int slot_save(uint32_t i, const void *p, uint32_t n) { if (i >= 8u) return -1; memcpy(flash[i], p, n); flash_ok[i] = 1; flash_n[i] = n; return 0; }
+static int slot_peek(uint32_t i, uint32_t off, void *p, uint32_t n) { if (i >= 8u || !flash_ok[i] || off + n > flash_n[i]) return -1; memcpy(p, flash[i] + off, n); return 0; }
 #include "../firmware/src/vs_prog.c"
 #include "../firmware/src/vs_xfer.c"
 
@@ -79,7 +81,8 @@ int main(void)
     vs_xfer_rx(&x, &g, body, msg(body, VS_XF_READ, d, 3), 1);
     for (k = 0; k < 128u; k++) {
         n = next(&x, &g, out);
-        if (n != 9u + VS_XF_REC7 || out[4] != VS_XF_DATA || out[6] != k) { printf("k %u n %u cmd %x\n", k, n, out[4]); EXPECT(0, "a DATA for every slot, in order"); break; }
+        if (n != 9u + VS_XF_REC7 + VS_HOME_N || out[4] != VS_XF_DATA || out[6] != k) { printf("k %u n %u cmd %x\n", k, n, out[4]); EXPECT(0, "a DATA for every slot, in order"); break; }
+        if (out[7 + VS_XF_REC7] != VS_HOME_DEF || out[10 + VS_XF_REC7] != VS_HOME_DEF) { EXPECT(0, "a DATA's knobs: default when none were sent"); break; }
         vs_xfer_unpack7(out + 7, VS_XF_REC7, back.b);
         if (k == 5u) EXPECT(!memcmp(back.b, r.b, VS_REC), "slot 6 of U2 reads back as written");
         else if (!vs_rec_empty(&back)) { EXPECT(0, "the other slots of a fresh bank are empty"); break; }
@@ -108,7 +111,7 @@ int main(void)
         EXPECT(next(&x, &g, out) == 0, "LINK: no ACK (the EDIT is the answer)");
         EXPECT(vs_xfer_link(&x, &now, 1, ms, out, sizeof out) == 0, "a sound still landing: the dump waits");
         n = vs_xfer_link(&x, &now, 0, ms, out, sizeof out);
-        EXPECT(n == 7u + VS_XF_REC7 && out[4] == VS_XF_EDIT, "LINK answered with EDIT (what plays)");
+        EXPECT(n == 7u + VS_XF_REC7 + VS_HOME_N && out[4] == VS_XF_EDIT, "LINK answered with EDIT (what plays, its knobs after)");
         vs_xfer_unpack7(out + 5, VS_XF_REC7, got.b);
         EXPECT(vs_patch_unpack(&got, &q) == 0 && !memcmp(q.name, "LINKED", 6), "the EDIT holds the sound playing");
         EXPECT(vs_xfer_link(&x, &now, 0, ms += 100, out, sizeof out) == 0, "unchanged: no report");
@@ -138,6 +141,70 @@ int main(void)
         EXPECT(vs_xfer_link(&x, &now, 0, ms += 100, out, sizeof out) == 0 && !x.link_t, "no renewal: the link lapses, nothing sent");
         d[0] = 1; vs_xfer_rx(&x, &g, body, msg(body, VS_XF_LINK, d, 1), 1);
         EXPECT(next(&x, &g, out) && out[8] == VS_XF_BADMSG, "a LINK with data is refused");
+        vs_xfer_rx(&x, &g, body, msg(body, VS_XF_LINK, d, 0), 1);
+        (void)vs_xfer_link(&x, &now, 0, ms += 100, out, sizeof out);
+        now.home[2] = VS_P_DLY_TIME;                        /* only a HOME knob changed */
+        n = vs_xfer_link(&x, &now, 0, ms += 100, out, sizeof out);
+        EXPECT(n && out[5 + VS_XF_REC7 + 2] == VS_P_DLY_TIME && out[5 + VS_XF_REC7] == VS_HOME_DEF, "a HOME knob changed: reported, the others default");
+    }
+
+    {   /* HOME's knobs (Kris 18 Nov): with the patch, through the bank, the transfer, and a bank from before them */
+        static vs_prog_t h;
+        static const uint8_t HK[VS_HOME_N] = {VS_P_LFO1_SPEED, VS_HOME_DEF, VS_P_CTRL_SRC1, VS_P_OSC_MIX};
+        char nm[VS_NAME];
+        memset(flash_ok, 0, sizeof flash_ok);
+        vs_prog_load(&h, 4);
+        vs_patch_init(&p);
+        EXPECT(p.home[0] == VS_P_FLT_FREQ && p.home[1] == VS_P_FLT_RES && p.home[2] == VS_P_FLT_AMOUNT && p.home[3] == VS_P_AMP_GAIN, "INIT: the default knobs");
+        vs_home_set(&p, HK);
+        EXPECT(p.home[0] == VS_P_LFO1_SPEED && p.home[1] == VS_P_FLT_RES && p.home[2] == VS_P_FLT_AMOUNT && p.home[3] == VS_P_OSC_MIX,
+               "set: 7F and a routing word read as the default");
+        memcpy(p.name, "KNOBS           ", 16);
+        vs_prog_write(&h, 7, &p);
+        EXPECT(h.home[7][0] == VS_P_LFO1_SPEED && h.home[7][1] == VS_HOME_DEF && h.home[7][3] == VS_P_OSC_MIX, "stored: a default knob as 7F");
+        EXPECT(vs_prog_get(&h, 7, &q) == 0 && !memcmp(q.home, p.home, VS_HOME_N), "the knobs read back with the patch");
+        vs_prog_swap(&h, 7, 9);
+        EXPECT(vs_prog_get(&h, 9, &q) == 0 && q.home[0] == VS_P_LFO1_SPEED && h.home[7][0] == VS_HOME_DEF, "a swap moves them");
+        vs_prog_swap(&h, 7, 9);
+        EXPECT(vs_prog_flush(&h) == 0 && flash_n[3] == VS_PROG_STORED, "a bank is saved with its knob table (15,872 B)");
+        vs_prog_load(&h, 4);
+        EXPECT(vs_prog_get(&h, 7, &q) == 0 && q.home[0] == VS_P_LFO1_SPEED && q.home[3] == VS_P_OSC_MIX, "and loads with it");
+
+        vs_prog_load(&g, 1);
+        EXPECT(vs_prog_peek_name(&g, 4, 7, nm) == 1 && !memcmp(nm, "KNOBS", 5), "SAVE's glance: a name in another bank, unloaded");
+        EXPECT(vs_prog_peek_name(&g, 4, 8, nm) == 0 && vs_prog_peek_name(&g, 5, 0, nm) == 0, "an empty slot, a bank never saved: nothing");
+        EXPECT(vs_prog_peek_name(&g, 0, 0, nm) == 1 && vs_prog_peek_name(&g, 1, 0, nm) == 0, "FACTORY from the firmware, the bank in RAM from RAM");
+
+        slot_save(5, h.r, VS_PROG_STORED_V1);    /* a bank saved before the knobs: records only */
+        vs_prog_load(&h, 6);
+        EXPECT(vs_prog_get(&h, 7, &q) == 0 && !memcmp(q.name, "KNOBS", 5) && q.home[0] == VS_P_FLT_FREQ && q.home[3] == VS_P_AMP_GAIN,
+               "an older bank: its patches load, the knobs default");
+        h.dirty = 1;
+        EXPECT(vs_prog_flush(&h) == 0 && flash_n[5] == VS_PROG_STORED, "and it is saved in the new form");
+
+        vs_patch_pack(&p, &r);                   /* WRITE with the knobs */
+        d[0] = 4; d[1] = 20; vs_xfer_pack7(r.b, VS_REC, d + 2);
+        memcpy(d + 2 + VS_XF_REC7, HK, VS_HOME_N);
+        vs_xfer_init(&x);
+        vs_xfer_rx(&x, &h, body, msg(body, VS_XF_WRITE, d, 2 + VS_XF_REC7 + VS_HOME_N), 1); n = next(&x, &h, out);
+        EXPECT(out[8] == VS_XF_OK && vs_prog_get(&h, 20, &q) == 0 && q.home[0] == VS_P_LFO1_SPEED && q.home[2] == VS_P_FLT_AMOUNT,
+               "WRITE with the knobs: kept (a bad one: default)");
+        d[1] = 21;
+        vs_xfer_rx(&x, &h, body, msg(body, VS_XF_WRITE, d, 2 + VS_XF_REC7), 1); n = next(&x, &h, out);
+        EXPECT(out[8] == VS_XF_OK && vs_prog_get(&h, 21, &q) == 0 && q.home[0] == VS_P_FLT_FREQ, "WRITE without them: the defaults");
+        vs_xfer_rx(&x, &h, body, msg(body, VS_XF_WRITE, d, 2 + VS_XF_REC7 + 1), 1); n = next(&x, &h, out);
+        EXPECT(out[8] == VS_XF_BADMSG, "WRITE of another length: refused");
+        d[0] = 4; d[1] = 20; d[2] = 1;
+        vs_xfer_rx(&x, &h, body, msg(body, VS_XF_READ, d, 3), 1); n = next(&x, &h, out);
+        EXPECT(n == 9u + VS_XF_REC7 + VS_HOME_N && out[7 + VS_XF_REC7] == VS_P_LFO1_SPEED && out[8 + VS_XF_REC7] == VS_HOME_DEF &&
+               out[10 + VS_XF_REC7] == VS_P_OSC_MIX, "DATA: the knobs after the record");
+        vs_xfer_pack7(r.b, VS_REC, d); memcpy(d + VS_XF_REC7, HK, VS_HOME_N);
+        vs_xfer_rx(&x, &h, body, msg(body, VS_XF_PLAY, d, VS_XF_REC7 + VS_HOME_N), 1); n = next(&x, &h, out);
+        EXPECT(out[8] == VS_XF_OK && x.play.home[0] == VS_P_LFO1_SPEED, "PLAY with the knobs");
+        vs_xfer_rx(&x, &h, body, msg(body, VS_XF_PLAY, d, VS_XF_REC7), 1); n = next(&x, &h, out);
+        EXPECT(out[8] == VS_XF_OK && x.play.home[0] == VS_P_FLT_FREQ, "PLAY without: the defaults");
+        vs_prog_clear(&h, 20);
+        EXPECT(h.home[20][0] == VS_HOME_DEF, "CLEAR: the knobs back to default");
     }
 
     printf(fails ? "vs_xfer_test: %u FAILED\n" : "vs_xfer_test: ok\n", fails);

@@ -143,7 +143,7 @@ def main():
                 sys.exit(f"sy1_xfer: read: {STATUS.get(r[4], r[4])}")
             if r[0] != DATA:
                 continue
-            p = sy1.unpack(unpack7(r[3:]))
+            p = sy1.unpack(unpack7(r[3:3 + 138]))   # (HOME's knobs after it: not in a .sy1)
             if p:
                 (out / f"{r[2] + 1:03}.sy1").write_bytes(sy1.write(p))
             got += 1

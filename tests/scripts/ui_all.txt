@@ -1,5 +1,5 @@
-# the screens (vs_ui.c), every one: HOME with a chord, all 28 pages (ALGORITHM), a knob in hand on FILTER, GLOBAL's
-# two pages and the six themes, BANK, SAVE. FM-1 ids: enc SELECT 0, ALGORITHM 1, KNOB1..4 2..5, PRESETS 6;
+# the screens (vs_ui.c), every one: HOME with a chord, all 28 pages (ALGORITHM), a knob in hand on FILTER, GLO's
+# HOME KNOBS, then GLOBAL's pages and the six themes, BANK, SAVE. FM-1 ids: enc SELECT 0, ALGORITHM 1, KNOB1..4 2..5, PRESETS 6;
 # buttons: 2 FX, 5 LFO, 7 GLO, 8 HOME, 9 SAVE, 10 ARP, 11 SEQ (as tests/scripts/ui.txt)
 #   tests/run_host.sh tests/scripts/ui_all.txt
 100 enc 6 3
@@ -66,6 +66,7 @@
 6600 keys 0
 7000 btn 7
 7100 btn 7
+7150 btn 7
 7200 shot
 7300 btn 7
 7400 shot
@@ -88,6 +89,7 @@
 9700 btn 7
 9750 btn 7
 9800 btn 7
+9825 btn 7
 9850 enc 3 -1
 9900 enc 2 -5
 9950 btn 11

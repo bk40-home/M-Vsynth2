@@ -9,8 +9,8 @@
   FK.mockDevice = function (opts) {
     const o = opts || {};
     const M = FK.mvs, NB = 8, listeners = new Set();
-    const banks = [];
-    for (let b = 0; b <= NB; b++) banks.push(Array.from({length: 128}, () => M.empty()));
+    const banks = [], homes = [], DEF = [0x7F, 0x7F, 0x7F, 0x7F];
+    for (let b = 0; b <= NB; b++) { banks.push(Array.from({length: 128}, () => M.empty())); homes.push(Array.from({length: 128}, () => DEF)); }
     const fac = FK.adapter.factory()[0].slots;
     fac.forEach((p, s) => { if (p) banks[0][s] = M.pack(p); });
     if (o.seed) o.seed(banks);
@@ -18,7 +18,7 @@
     const reply = bytes => later(() => listeners.forEach(f => f(Uint8Array.from(bytes))));
     const ack = (cmd, bb, ss, st) => reply(M.msg(0x7F, [cmd, bb, ss, st]));
     const dev = {
-      banks, played: [], log: [],
+      banks, homes, played: [], log: [],
       busyNext: 0,                               /* the tests: answer BUSY to the next n writes */
       send(bytes) {
         const d = Uint8Array.from(bytes);
@@ -30,22 +30,24 @@
         if (cmd === 1) {
           const [, bb, ss] = r;
           if (dev.busyNext > 0) { dev.busyNext--; ack(1, bb, ss, 3); return; }
-          if (bb < 1 || bb > NB || ss > 127 || r.length !== 3 + 138) { ack(1, bb, ss, r.length !== 3 + 138 ? 1 : 2); return; }
-          banks[bb][ss] = M.unpack7(r.slice(3));
+          const okLen = r.length === 3 + M.REC7 || r.length === 3 + M.REC7 + 4;   /* (the knobs after it, or not) */
+          if (bb < 1 || bb > NB || ss > 127 || !okLen) { ack(1, bb, ss, !okLen ? 1 : 2); return; }
+          banks[bb][ss] = M.unpack7(r.slice(3, 3 + M.REC7));
+          homes[bb][ss] = r.length > 3 + M.REC7 ? Array.from(r.slice(3 + M.REC7)) : DEF;
           ack(1, bb, ss, 0);
         } else if (cmd === 2) {
           const [, bb, ss] = r;
           if (bb < 1 || bb > NB || ss > 127) { ack(2, bb, ss, 2); return; }
-          banks[bb][ss] = M.empty();
+          banks[bb][ss] = M.empty(); homes[bb][ss] = DEF;
           ack(2, bb, ss, 0);
         } else if (cmd === 3) {
-          dev.played.push(M.unpack(M.unpack7(r.slice(1))));
+          dev.played.push(M.unpack(M.unpack7(r.slice(1, 1 + M.REC7)), r.length > 1 + M.REC7 ? r.slice(1 + M.REC7) : null));
           ack(3, 0, 0, 0);
         } else if (cmd === 4) {
           const [, bb, ss, nn] = r;
           if (bb > NB) return;
           const end = nn ? Math.min(128, ss + nn) : 128;
-          for (let s = ss; s < end; s++) later(() => listeners.forEach(f => f(Uint8Array.from(M.msg(0x11, [bb, s, ...M.pack7(banks[bb][s])])))), 1 + (s - ss));
+          for (let s = ss; s < end; s++) later(() => listeners.forEach(f => f(Uint8Array.from(M.msg(0x11, [bb, s, ...M.pack7(banks[bb][s]), ...homes[bb][s]])))), 1 + (s - ss));
         } else if (cmd === 5) {
           reply(M.msg(0x15, [..."M-VSYNTH2 sandbox".split("").map(c => c.charCodeAt(0)), 0, 8, NB]));
         } else if (cmd === 6) {

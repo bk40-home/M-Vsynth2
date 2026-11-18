@@ -63,6 +63,20 @@ assert.equal(fac.filter(Boolean).length, data.factory.length);
   await A.device.write(dev, 5, 127, q);
   const q2 = await A.device.readSlot(dev, 5, 127);
   assert.equal(A.nameOf(q2), "My Own Pad 16chr"); assert.equal(q2.color, "yellow"); n++;
+  /* HOME's knobs (vs_patch.h): sent only when not default, read back with the patch, played with the audition */
+  const k = Object.assign({}, pats[5], {home: [43, 0x7F, 86, 5]});   /* (86, a routing word: the default) */
+  assert.deepEqual(M.homeOf(k), [43, 0x7F, 0x7F, 5]);
+  dev.log.length = 0;
+  await A.device.write(dev, 6, 1, k);
+  assert.deepEqual(dev.homes[6][1], [43, 0x7F, 0x7F, 5]);
+  assert.deepEqual((await A.device.readSlot(dev, 6, 1)).home, [43, 0x7F, 0x7F, 5]); n++;
+  await A.device.write(dev, 6, 2, pats[5]);
+  assert.deepEqual(dev.homes[6][2], [0x7F, 0x7F, 0x7F, 0x7F]);
+  assert.deepEqual((await A.device.readSlot(dev, 6, 2)).home, [0x7F, 0x7F, 0x7F, 0x7F]); n++;
+  assert.notEqual(A.fingerprint(k), A.fingerprint(pats[5]));
+  assert.equal(A.fingerprint(Object.assign({}, pats[5], {home: undefined})), A.fingerprint(pats[5])); n++;
+  await A.device.audition(dev, k);
+  assert.deepEqual(dev.played[1].home, [43, 0x7F, 0x7F, 5]); n++;
   /* a bank out as a zip of NNN.sy1 and back in */
   const z = FK.zip(u3.map((p, s) => p && {name: A.fileName(p, s), data: A.serialise(p)}).filter(Boolean));
   const back = await FK.unzip(z);
