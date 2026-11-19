@@ -84,6 +84,16 @@ to the accent colour for 1.5 s, with its value large on the graph. FREQ's thin o
 envelope adds. Six themes (SEA, EMBER, ICE, ORCHID, CRT, PAPER) on GLOBAL 2/3; COLOUR PATCH takes each patch's `.sy1`
 colour as the theme's own.
 
+## Bluetooth MIDI
+
+The FM-1 is a Bluetooth MIDI device called **M-Vsynth2 XXXX**: connect to it from a Mac (Audio MIDI Setup >
+Bluetooth Configuration), an iPhone or an iPad (the app's Bluetooth MIDI page). It plays what comes in and sends its keys
+out, as over USB. **BT MIDI** on GLOBAL 2/3 switches it ON or OFF and shows **LINKED** while a computer is connected.
+It is ON from the factory and kept with the settings. One link at a time, no pairing code. Patches, the library page
+and the screen reader stay on USB, and the MIDI clock goes out on USB only. Bluetooth starts at power-on, and the
+first second after that is silent while the radio calibrates. The stack is fm1-base's own (no JieLi library):
+`third_party/fm1-kit/firmware/fk_ble/README.md`. `./build.sh --no-ble` builds without it (`mvsynth2-usb.fwsc`).
+
 ## Patches to and from a computer
 
 **The patch library, `docs/library.html`** (Chrome or Edge, Web MIDI; one self-contained page, nothing loaded from

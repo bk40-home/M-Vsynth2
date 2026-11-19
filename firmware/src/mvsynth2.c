@@ -20,7 +20,7 @@
  * (MIDI CH, VOICES, TEMPO, CLOCK) and 2/2 (THEME, COLOUR); the transfer at the foot while the computer talks. Values
  * read as Synth2 shows them (vs_param_text).
  *
- * MIDI in (USB or the TRS jack): notes (GLOBAL's channel, or any), velocity, the bend, CC 64, CC 120 / 123, program
+ * MIDI in (USB, the TRS jack or Bluetooth: GLOBAL 2/3 BLUETOOTH): notes (GLOBAL's channel, or any), velocity, the bend, CC 64, CC 120 / 123, program
  * change (a slot of the bank shown; an empty one is ignored, as in Synth2), bank select (CC 0: 0 FACTORY, 1..8),
  * channel pressure and every CC for the CTRL routes, the panel's CC map (proposal 8), clock (F8: the tempo while it
  * runs; else GLOBAL's TEMPO). Out: the keys' notes on channel 1. SysEx 7D 4D 56: the transfer (vs_xfer.h); 7D 53 52: the
@@ -30,6 +30,7 @@
  * tests/host.c runs this file on a computer: the screen as a PNG, the sound as a WAV.
  * What platform.c offers: docs/API.md. The chip's rules: docs/RULES.md. */
 #define APP_NAME "M-VSYNTH2"                    /* the rescue and crash screens (platform.c) */
+#define FK_BLE_NAME "M-Vsynth2"                 /* Bluetooth MIDI: "M-Vsynth2 XXXX" (platform.c, fm1-kit fk_ble) */
 #define STORE_MAGIC 0x3253564Du                /* "MVS2": our settings never read another fork's (store.h) */
 #define APP_SYSEX_ID 0x7Du                      /* our SysEx's first byte (the transfer, vs_xfer.h; platform.c) */
 #include <stdint.h>
@@ -39,6 +40,14 @@ static void app_sysex(const uint8_t *p, uint32_t n);
 #define APP_SYSEX app_sysex
 #define SXQ 128u                                /* the SysEx send queue holds a whole screen-reader SAY (vs_speak.c; usb.c) */
 #include "platform.c"
+#ifndef FK_BLE
+#define FK_BLE 0                                /* (platform.c sets it on the FM-1) */
+#endif
+#if !FK_BLE                                     /* (a computer, the browser, fm1-dock, --no-ble: no Bluetooth) */
+enum { FK_BLE_OFF, FK_BLE_ADV, FK_BLE_LINKED };
+static void fk_ble_enable(int on) { (void)on; }
+static int fk_ble_state(void) { return FK_BLE_OFF; }
+#endif
 #include "vs_voice.h"                          /* the engine; its code is vs_dsp.c, built apart at -O2 */
 #include "vs_prog.c"                           /* the banks (main loop) */
 #include "vs_xfer.c"                           /* the transfer (main loop) */
@@ -83,6 +92,8 @@ static struct {
     uint8_t bank, slot;                         /* what played last */
     int8_t oct;
     uint8_t theme, colour;                      /* GLOBAL 2/2: the screen's theme (vs_ui.c UI_THEMES), COLOUR 0 THEME, 1 PATCH */
+    uint8_t bt;                                 /* GLOBAL 2/3 BLUETOOTH: 1 ON (Kris 19 Nov). Last: a record from before
+                                                   (one byte shorter) still loads, with ON (app_main) */
 } set;
 static uint8_t set_dirty;
 static uint32_t set_t;
@@ -304,9 +315,11 @@ static void global_edit(uint32_t k, int32_t e)
         ui_gtouch();
         return;
     }
-    if (gpage == GP_LOOK) {                     /* GLOBAL 2/3: THEME, COLOUR (vs_ui.c applies them) */
+    if (gpage == GP_LOOK) {                     /* GLOBAL 2/3: THEME, COLOUR (vs_ui.c applies them), BLUETOOTH */
         if (k == 0u) { v = set.theme + e; set.theme = (uint8_t)(v < 0 ? 0 : v >= (int32_t)UI_NTHEME ? (int32_t)UI_NTHEME - 1 : v); }
         else if (k == 1u) set.colour = e > 0;
+        else if (k == 2u) { if (set.bt == (e > 0)) return; set.bt = e > 0; fk_ble_enable(set.bt); }   /* (the first ON
+                                                   holds the main loop ~0.5 s while the radio calibrates) */
         else return;
         set_dirty = 1;
         ui_gtouch();
@@ -327,10 +340,15 @@ static void app_main(void)
     int32_t e;
     vs_engine_init(&eng);
     vs_xfer_init(&xfer);
-    if (settings_load(&set, sizeof set) || set.ch > 16u || !set.voices || set.voices > VS_NV || set.tempo < 40u ||
+    if (settings_load(&set, sizeof set) == 0) {}
+    else if (settings_load(&set, __builtin_offsetof(__typeof__(set), bt)) == 0) set.bt = 1;   /* (before BLUETOOTH: ON) */
+    else set.bt = 0xFFu;                        /* (none: the defaults below) */
+    if (set.bt > 1u || set.ch > 16u || !set.voices || set.voices > VS_NV || set.tempo < 40u ||
         set.tempo > 240u || set.bank > VS_NBANK || set.oct < -2 || set.oct > 2 || set.theme >= UI_NTHEME || set.colour > 1u) {
         set.ch = 0; set.voices = VS_NV; set.tempo = 120; set.bank = 0; set.slot = 0; set.oct = 0; set.theme = 0; set.colour = 0;
+        set.bt = 1;
     }
+    fk_ble_enable(set.bt);                      /* ON: the radio calibrates (~0.5 s; the first second silent), advertises */
     eng.nv = set.voices;
     home_list_build();
     vs_prog_load(&prog, set.bank);

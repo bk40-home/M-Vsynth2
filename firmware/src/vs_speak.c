@@ -150,6 +150,7 @@ static void sp_global_cell(uint32_t c)
     } else if (gpage == GP_LOOK) {
         if (c == 0u) { sp_cat("THEME "); sp_cat(UI_THEMES[set.theme].name); }
         else if (c == 1u) sp_cat(set.colour ? "COLOUR PATCH" : "COLOUR THEME");
+        else if (c == 2u) sp_cat(!set.bt ? "BLUETOOTH OFF" : fk_ble_state() == FK_BLE_LINKED ? "BLUETOOTH LINKED" : "BLUETOOTH ON");
     } else {
         if (c == 0u) { sp_cat("CPU "); sp_num(dg_avg); sp_cat("%"); }
         else if (c == 1u) { sp_cat("PEAK "); sp_num(dg_peak); sp_cat("%"); }
@@ -364,6 +365,7 @@ static void speak_dump(const char *path)
     gpage = GP_LOOK;
     { const uint8_t th = set.theme; for (set.theme = 0; set.theme < UI_NTHEME; set.theme++) { sp_reset(); sp_global_cell(0); OUT("KNOB"); } set.theme = th; }
     sp_reset(); sp_global_cell(1); OUT("KNOB");
+    { const uint8_t bt = set.bt; for (set.bt = 0; set.bt < 2u; set.bt++) { sp_reset(); sp_global_cell(2); OUT("KNOB"); } set.bt = bt; }
     fprintf(f, "MSG\tOCTAVE UP 2\nMSG\tOCTAVE DOWN 1\nMSG\tOCTAVE 0\nMSG\tALL NOTES OFF\n");
     sp_reset(); sp_cat("SAVED "); sp_prog(0); OUT("MSG");
     fprintf(f, "WARN\tNOT SAVED: THE BANK COULD NOT BE WRITTEN\n");

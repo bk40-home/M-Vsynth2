@@ -1289,15 +1289,18 @@ static void ui_draw_global(void)
         k.lab = "CORES"; p = put_u(k.val, vs_core1_online() ? 2u : 1u); *p = 0; ui_cell(2, &k);
         k.lab = "DROPPED"; p = put_u(k.val, eng.shed); *p = 0; ui_cell(3, &k);
     } else {
-        ui_panel(G_GLOB2, set.theme, 0u);
+        const uint32_t bt = set.bt ? (fk_ble_state() == FK_BLE_LINKED ? 2u : 1u) : 0u;   /* OFF, ON, LINKED */
+        ui_panel(G_GLOB2, hsh(set.theme, bt), 0u);
         k.hot = (uint8_t)ui_ghot(0); k.w = W_CHOICE; k.n = (uint8_t)UI_NTHEME; k.idx = set.theme; k.lab = "THEME";
         p = put_s(k.val, UI_THEMES[set.theme].name); *p = 0;
         ui_cell(0, &k);
         k.hot = (uint8_t)ui_ghot(1); k.w = W_CHOICE; k.n = 2; k.idx = set.colour ? 1u : 0u; k.lab = "COLOUR";
         p = put_s(k.val, set.colour ? "PATCH" : "THEME"); *p = 0;
         ui_cell(1, &k);
-        k.hot = 0; k.w = W_NONE; k.lab = ""; k.val[0] = 0;
+        k.hot = (uint8_t)ui_ghot(2); k.w = W_CHOICE; k.n = 2; k.idx = set.bt; k.lab = "BT MIDI";   /* (Kris 19 Nov) */
+        p = put_s(k.val, bt == 2u ? "LINKED" : bt ? "ON" : "OFF"); *p = 0;
         ui_cell(2, &k);
+        k.hot = 0; k.w = W_NONE; k.lab = ""; k.val[0] = 0;
         ui_cell(3, &k);
     }
     ui_foot_prog();
