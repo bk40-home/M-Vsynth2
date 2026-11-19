@@ -1046,7 +1046,7 @@ static void g_glob2(void)
 static uint32_t dg_avg, dg_peak;                /* (ui_draw: the CPU average and the 3 s peak, % of the buffer) */
 static void g_glob3(void)
 {
-    char s[32], *p;
+    char s[48], *p;
     const int ext = clk_t && fm1_ms - clk_t < 1000u;
     const uint16_t pc = dg_peak >= 90u ? T.warn : T.accent;
     txt(PX0 + 2, PY0 - 2, &FONT_LAB, "CPU", T.dim);
@@ -1055,9 +1055,14 @@ static void g_glob3(void)
     txt(PX0 + 80, PY0 - 2, &FONT_LAB, "PEAK (3 S)", T.dim);
     p = put_u(s, dg_peak); *p++ = '%'; *p = 0;
     txt(PX0 + 80, PY0 + 12, &FONT_BIG, s, pc);
-    p = put_s(s, "VOICES "); p = put_u(p, pc_voice); p = put_s(p, "%   BUS "); p = put_u(p, pc_bus); *p++ = '%'; *p = 0;
+    {   /* per core: CPU0 renders its half plus the bus and waits on CPU1; CPU1 renders the other half */
+        const uint32_t c0v = pc_voice > pc_wait ? pc_voice - pc_wait : 0u;   /* t_voice counts the join wait: take it out */
+        p = put_s(s, "C0 "); p = put_u(p, c0v); p = put_s(p, "% BUS "); p = put_u(p, pc_bus);
+        p = put_s(p, "%  C1 "); p = put_u(p, pc_cpu1); *p++ = '%'; *p = 0;
+    }
     txt(PX0 + 2, PY0 + 44, &FONT_LAB, s, T.text);
-    p = put_s(s, vs_core1_online() ? "2 CORES" : "1 CORE"); p = put_s(p, "   DROPPED "); p = put_u(p, eng.shed); *p = 0;
+    p = put_s(s, vs_core1_online() ? "2 CORES" : "1 CORE"); p = put_s(p, "  WAIT "); p = put_u(p, pc_wait);
+    p = put_s(p, "%  DROPPED "); p = put_u(p, eng.shed); *p = 0;
     txt(PX0 + 2, PY0 + 58, &FONT_LAB, s, eng.shed ? T.warn : T.dim);
     p = put_u(s, eng.bpm_q8 >> 8); p = put_s(p, ext ? " BPM, MIDI CLOCK" : " BPM, INTERNAL"); *p = 0;
     txt(PX0 + 2, PY1 - 14, &FONT_LAB, s, T.dim);
@@ -1280,7 +1285,7 @@ static void ui_draw_global(void)
         p = put_s(k.val, ext ? "EXT" : "INT"); *p = 0;
         ui_cell(3, &k);
     } else if (gpage == GP_DIAG) {              /* DIAG: the meters, read only; redrawn twice a second */
-        const uint32_t key = hsh(hsh(hsh(dg_avg, dg_peak << 8 ^ pc_voice << 16 ^ pc_bus << 24), eng.shed),
+        const uint32_t key = hsh(hsh(hsh(dg_avg, dg_peak << 8 ^ pc_voice << 16 ^ pc_bus << 24), eng.shed ^ pc_cpu1 << 8 ^ pc_wait << 16),
                                  (uint32_t)vs_core1_online() ^ (uint32_t)ext << 1 ^ eng.bpm_q8 >> 6);
         ui_panel(G_GLOB3, key, need_full ? 0u : 500u);
         k.hot = 0; k.w = W_READ; k.v = 0;

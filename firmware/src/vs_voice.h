@@ -241,3 +241,5 @@ void vs_engine_lit(const vs_engine_t *e, uint32_t on[4], uint32_t rel[4]);   /* 
 int vs_engine_load(vs_engine_t *e, const vs_patch_t *p);
 void vs_engine_render(vs_engine_t *e, int32_t *out, uint32_t n);         /* ISR: n stereo frames, adds Q15 */
 int vs_core1_online(void);                     /* 1: the second core renders half the voices (vs_dsp.c) */
+uint32_t vs_core1_job_ticks(void);             /* CPU1 render time (wrapping tick sum); 0 without the second core */
+uint32_t vs_core1_wait_ticks(void);            /* CPU0 time spent waiting at the join (wrapping tick sum) */

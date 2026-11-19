@@ -206,6 +206,7 @@ static void ptext(uint32_t id, char *s, uint32_t cap)
     vs_param_text(id, pval(id), lfo ? pval(lfo) != 0 : 0, pval(VS_P_FX_TYPE), s, cap);
 }
 static uint32_t pc_voice, pc_bus;                /* the split: voices, bus, % of the buffer's time */
+static uint32_t pc_cpu1, pc_wait;                /* per core: CPU1's voice render, CPU0's wait at the join (% of the buffer) */
 
 /* HOME KNOBS (GLO, Kris 18 Nov): what HOME's KNOB 1..4 turn, kept with the patch (eng.patch.home, vs_patch.h). A
  * knob there steps through the parameters a HOME knob may take, in page order (LFO 1 .. ARP, as ALGORITHM walks
@@ -467,10 +468,12 @@ static void app_main(void)
             for (k = 0; k < 12u; k++) if (pk_slot[k] > pk) pk = pk_slot[k];
             avg_us = n ? sum / n / FM1_TICKS_PER_US : 0u;
             {   /* the split, over the same 250 ms: ticks / (n buffers x the buffer's ticks) */
-                static uint32_t tv0, tb0;
+                static uint32_t tv0, tb0, jt0, wt0;
                 const uint32_t tv = eng.t_voice, tb = eng.t_bus, span = n * BUF_US * FM1_TICKS_PER_US / 100u;
+                const uint32_t jt = vs_core1_job_ticks(), wt = vs_core1_wait_ticks();   /* CPU1 render, CPU0 wait */
                 pc_voice = span ? (tv - tv0) / span : 0u; pc_bus = span ? (tb - tb0) / span : 0u;
-                tv0 = tv; tb0 = tb;
+                pc_cpu1 = span ? (jt - jt0) / span : 0u; pc_wait = span ? (wt - wt0) / span : 0u;
+                tv0 = tv; tb0 = tb; jt0 = jt; wt0 = wt;
             }
             peak_pc = pk / FM1_TICKS_PER_US * 100u / BUF_US;
         }
