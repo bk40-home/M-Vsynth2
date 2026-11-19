@@ -20,6 +20,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: fm1-kit (Bluetooth's fk_ble; the SMK builds don't use it)
+        run: git submodule update --init --depth 1 third_party/fm1-kit
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.x'
