@@ -49,6 +49,7 @@ void vs_lfo_render(vs_lfo_t *l, uint32_t n, uint32_t wave, uint32_t inc, int32_t
             v = amp ? -(l->cur + r) : l->prev + r;
             break;
         }
+        case 6: v = (int32_t)(ph >> 1) - ONE30; break;                              /* ramp (rising saw): 2p - 1 */
         default: {                              /* sin(2 pi p) */
             uint32_t j = ph >> 22, fr = (ph >> 6) & 65535u;
             v = VS_SIN_Q30[j] + (int32_t)(((int64_t)(VS_SIN_Q30[j + 1u] - VS_SIN_Q30[j]) * fr) >> 16);
@@ -65,6 +66,10 @@ void vs_lfo_render(vs_lfo_t *l, uint32_t n, uint32_t wave, uint32_t inc, int32_t
                 break;
             case 1: s = ph < 0x80000000u ? x >> 30 : -((-x) >> 30); break;          /* rising floor, falling ceil */
             case 2: s = v > 0 ? sn : -sn; break;
+            case 6:                             /* ramp: floor(p (2N + 1)) - N, held to N (saw's mirror) */
+                s = (int64_t)((uint64_t)ph * (uint64_t)(2 * sn + 1) >> 32) - sn;
+                if (s > sn) s = sn;
+                break;
             case 3:
             case 4: s = x >> 30; break;
             default: s = x >= 0 ? (x + (1 << 28)) >> 30 : -((-x + (1 << 28)) >> 30); break;   /* sign x floor(|N v| + 1/4) */

@@ -292,12 +292,51 @@ static void section(uint32_t btn)               /* a section button: open its pa
     else open_page(VS_PAGES[last_page[btn]].btn == btn ? last_page[btn] : first);
     last_page[btn] = (uint8_t)page;
 }
+/* The CTRL routes step over a discrete list, not raw integers (else a turn past CC 0 lands on 0xAFFF = 45055, #8).
+ * SRC: NONE, CC 0..127 (0xB0nn), BEND (0xE000), PRESS (0xD000). DST: NONE, then every routable parameter (the ones
+ * routes_apply honours: range 0..127), in index order. A value that is neither (old data from the bug) counts as
+ * NONE, so the next turn recovers onto the list. */
+#define SRC_BEND 0xE000
+#define SRC_PRESS 0xD000
+#define SRC_N (1 + 128 + 2)                     /* NONE + CC0..127 + BEND + PRESS */
+static int32_t src_ord(int32_t v)               /* value -> list position 0..SRC_N-1 */
+{
+    if (v < 0) return 0;
+    if ((v & 0xF000) == 0xB000 && (v & 0xFF) < 128) return 1 + (v & 0x7F);
+    if ((v & 0xF000) == SRC_BEND) return 1 + 128;
+    if ((v & 0xF000) == SRC_PRESS) return 1 + 128 + 1;
+    return 0;                                    /* unrecognised (e.g. 0xAFFF): treat as NONE */
+}
+static int32_t src_val(int32_t ord)             /* list position -> value */
+{
+    if (ord <= 0) return -1;
+    if (ord <= 128) return 0xB000 + (ord - 1);   /* CC 0..127 */
+    return ord == 129 ? SRC_BEND : SRC_PRESS;
+}
+static int is_route_dst(uint32_t id) { return id < VS_NPARAM && VS_PARAMS[id].min == 0 && VS_PARAMS[id].max == 127; }
+static int32_t dst_step(int32_t cur, int32_t e)
+{
+    uint32_t i;
+    int32_t n = 0, ord = 0;                      /* ord 0 = NONE; 1..n = routable params in index order */
+    for (i = 0; i < VS_NPARAM; i++) if (is_route_dst(i)) { n++; if ((int32_t)i <= cur) ord = n; }
+    ord += e;
+    if (ord < 0) ord = 0;
+    if (ord > n) ord = n;
+    if (ord == 0) return -1;
+    for (i = 0; i < VS_NPARAM; i++) if (is_route_dst(i) && --ord == 0) return (int32_t)i;
+    return -1;
+}
 static void edit(uint32_t id, int32_t e)
 {
     const vs_param_info_t *pi = &VS_PARAMS[id];
-    int32_t step = e;
-    if (pi->max - pi->min >= 100 && (e > 1 || e < -1)) step = e * 2;   /* a fast turn on a wide range */
-    {
+    if (pi->kind == VS_K_SRC) {
+        int32_t o = src_ord(pval(id)) + e;
+        vs_param_set(&eng.patch, id, src_val(o < 0 ? 0 : o >= SRC_N ? SRC_N - 1 : o));
+    } else if (pi->kind == VS_K_DST) {
+        vs_param_set(&eng.patch, id, dst_step(pval(id), e));
+    } else {
+        int32_t step = e;
+        if (pi->max - pi->min >= 100 && (e > 1 || e < -1)) step = e * 2;   /* a fast turn on a wide range */
         const int32_t v = pval(id) + step, m = pmax(id);
         vs_param_set(&eng.patch, id, v > m ? m : v);
     }
@@ -432,8 +471,10 @@ static void app_main(void)
                 else if (scr == SCR_GLOBAL) { global_edit(k, e); col = k; }
             }
         if ((e = fm1_enc_take(ENC_SELECT)) != 0) {
-            if (scr == SCR_PAGE && VS_PAGES[page].id[col] != 0xFFu) { const uint32_t id = VS_PAGES[page].id[col], m = (uint32_t)pmax(id); int32_t v = pval(id) + e;   /* (fine: no fast turn) */
-                vs_param_set(&eng.patch, id, v > (int32_t)m ? (int32_t)m : v); ui_touch(id); edited = 1; }
+            if (scr == SCR_PAGE && VS_PAGES[page].id[col] != 0xFFu) { const uint32_t id = VS_PAGES[page].id[col], kd = VS_PARAMS[id].kind;
+                if (kd == VS_K_SRC || kd == VS_K_DST) edit(id, e);   /* the routes step over their list (not raw: #8) */
+                else { const uint32_t m = (uint32_t)pmax(id); int32_t v = pval(id) + e;   /* (fine: no fast turn) */
+                    vs_param_set(&eng.patch, id, v > (int32_t)m ? (int32_t)m : v); ui_touch(id); edited = 1; } }
             else if (scr == SCR_BANK) { cursor = (cursor + 128u + (uint32_t)e) & 127u; if (!vs_prog_empty(&prog, cursor)) slot_want = cursor; }
             else if (scr == SCR_SAVE) save_char(e);
             else if (scr == SCR_GLOBAL) global_edit(col, e);

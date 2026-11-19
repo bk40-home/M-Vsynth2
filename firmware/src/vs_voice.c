@@ -1447,7 +1447,7 @@ static void lfo_block(vs_engine_t *e, const blk_t *b, lfo_mod_t *lm, int32_t pan
         const uint32_t inc = vs_lfo_inc((uint32_t)vs_clamp(p[k ? VS_P_LFO2_SPEED : VS_P_LFO1_SPEED], 0, 127),
                                         p[k ? VS_P_LFO2_TEMPO : VS_P_LFO1_TEMPO] != 0, e->bpm_q8);
         const int pitch = on && dest <= 2;
-        vs_lfo_render(&e->lfo[k], n, (uint32_t)vs_clamp(p[k ? VS_P_LFO2_TYPE : VS_P_LFO1_TYPE], 0, 5), inc, lv[k],
+        vs_lfo_render(&e->lfo[k], n, (uint32_t)vs_clamp(p[k ? VS_P_LFO2_TYPE : VS_P_LFO1_TYPE], 0, 6), inc, lv[k],
                       pitch ? st[k] : 0, (int32_t)VS_LFO_STEPS[vs_clamp(p[k ? VS_P_LFO2_DEPTH : VS_P_LFO1_DEPTH], 0, 127)],
                       dest == 4);
     }

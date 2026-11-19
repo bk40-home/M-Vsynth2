@@ -5,7 +5,7 @@
  *   two, global (not per voice), free running from power-on, bipolar +-1; KEY SYNC restarts one on the first note
  *   of a phrase (a note on with no key held)
  *   WAVE     0 saw (falling, +1 at phase 0), 1 triangle (-1 at phase 0), 2 square (+1 the first half), 3 S&H,
- *            4 smooth random, 5 sine
+ *            4 smooth random, 5 sine, 6 ramp (rising saw, -1 at phase 0: M-Vsynth2's own, not in Synth1/.sy1)
  *   random   one value a cycle, r (a xorshift from a fixed seed): S&H plays r; smooth ramps linearly from the last
  *            cycle's r to r. Routed to AMP, smooth ramps from -r to minus the last r instead. A restart draws a new
  *            r as a cycle's start does
@@ -13,7 +13,8 @@
  *            (16 bars .. 1/64T) at the tempo, not locked to the beat
  *   on pitch an LFO plays whole 1/128-octave steps of its own, N = VS_LFO_STEPS[DEPTH] at full swing, by its WAVE
  *            (v its value): saw floor((v + 1) / 2 (2N + 1)) - N held to N; triangle floor(N v) rising, ceil(N v)
- *            falling; square +-N; S&H and smooth floor(N v); sine sign(v) floor(N |v| + 1/4)
+ *            falling; square +-N; S&H and smooth floor(N v); sine sign(v) floor(N |v| + 1/4); ramp floor((v + 1) /
+ *            2 (2N + 1)) - N held to N (saw's mirror)
  * Value Q30, phase Q32. Integers only. */
 #pragma once
 #include <stdint.h>

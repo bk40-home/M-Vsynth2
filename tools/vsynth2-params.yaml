@@ -55,12 +55,12 @@ params:
   39: {key: PORTA_TIME,    label: "PORTA",   sec: VOICE,   kind: num,     cc: 89}
   40: {key: BEND_RANGE,    label: "BEND",    sec: CTRL,    kind: num,     cc: 104}
   41: {key: LFO1_DEST,     label: "DEST",    sec: LFO1,    kind: enum,    cc: 5, choices: [OSC2, OSC1+2, FILTER, AMP, P/W, FM, PAN]}
-  42: {key: LFO1_TYPE,     label: "WAVE",    sec: LFO1,    kind: enum,    cc: 2, choices: [SAW, TRI, SQUARE, S&H, SMOOTH, SINE]}
+  42: {key: LFO1_TYPE,     label: "WAVE",    sec: LFO1,    kind: enum,    cc: 2, hi: 6, choices: [SAW, TRI, SQUARE, S&H, SMOOTH, SINE, RAMP]}
   43: {key: LFO1_SPEED,    label: "SPEED",   sec: LFO1,    kind: table,   cc: 3, unit: "Hz / note value"}
   44: {key: LFO1_DEPTH,    label: "DEPTH",   sec: LFO1,    kind: num,     cc: 4}
   45: {key: OSC1_FM,       label: "FM",      sec: OSC1,    kind: num,     cc: 19}
   46: {key: LFO2_DEST,     label: "DEST",    sec: LFO2,    kind: enum,    cc: 13, choices: [OSC2, OSC1+2, FILTER, AMP, P/W, FM, PAN]}
-  47: {key: LFO2_TYPE,     label: "WAVE",    sec: LFO2,    kind: enum,    cc: 10, choices: [SAW, TRI, SQUARE, S&H, SMOOTH, SINE]}
+  47: {key: LFO2_TYPE,     label: "WAVE",    sec: LFO2,    kind: enum,    cc: 10, hi: 6, choices: [SAW, TRI, SQUARE, S&H, SMOOTH, SINE, RAMP]}
   48: {key: LFO2_SPEED,    label: "SPEED",   sec: LFO2,    kind: table,   cc: 11, unit: "Hz / note value"}
   49: {key: LFO2_DEPTH,    label: "DEPTH",   sec: LFO2,    kind: num,     cc: 12}
   50: {key: CTRL_SENS1,    label: "SENS 1",  sec: CTRL,    kind: signed,  cc: 103}

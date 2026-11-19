@@ -168,12 +168,12 @@ static const vs_param_info_t VS_PARAMS[VS_NPARAM] = {
     {0, 127, 0, 0, VS_SEC_VOICE, VS_K_NUM, 89, 255, "PORTA"},                 /* 39 portament time */
     {0, 24, 12, 12, VS_SEC_CTRL, VS_K_NUM, 104, 255, "BEND"},                 /* 40 pitch bend range */
     {1, 7, 3, 5, VS_SEC_LFO1, VS_K_ENUM, 5, 25, "DEST"},                      /* 41 lfo1 destination */
-    {0, 5, 5, 5, VS_SEC_LFO1, VS_K_ENUM, 2, 32, "WAVE"},                      /* 42 lfo1 type */
+    {0, 6, 5, 5, VS_SEC_LFO1, VS_K_ENUM, 2, 32, "WAVE"},                      /* 42 lfo1 type */
     {0, 127, 48, 37, VS_SEC_LFO1, VS_K_TABLE, 3, 255, "SPEED"},               /* 43 lfo1 speed */
     {0, 127, 19, 0, VS_SEC_LFO1, VS_K_NUM, 4, 255, "DEPTH"},                  /* 44 lfo1 depth */
     {0, 127, 0, 0, VS_SEC_OSC1, VS_K_NUM, 19, 255, "FM"},                     /* 45 osc1 FM */
-    {1, 7, 5, 3, VS_SEC_LFO2, VS_K_ENUM, 13, 38, "DEST"},                     /* 46 lfo2 destination */
-    {0, 5, 1, 4, VS_SEC_LFO2, VS_K_ENUM, 10, 45, "WAVE"},                     /* 47 lfo2 type */
+    {1, 7, 5, 3, VS_SEC_LFO2, VS_K_ENUM, 13, 39, "DEST"},                     /* 46 lfo2 destination */
+    {0, 6, 1, 4, VS_SEC_LFO2, VS_K_ENUM, 10, 46, "WAVE"},                     /* 47 lfo2 type */
     {0, 127, 64, 10, VS_SEC_LFO2, VS_K_TABLE, 11, 255, "SPEED"},              /* 48 lfo2 speed */
     {0, 127, 64, 0, VS_SEC_LFO2, VS_K_NUM, 12, 255, "DEPTH"},                 /* 49 lfo2 depth */
     {0, 127, 74, 64, VS_SEC_CTRL, VS_K_SIGNED, 103, 255, "SENS 1"},           /* 50 midi ctrl sens1 */
@@ -190,25 +190,25 @@ static const vs_param_info_t VS_PARAMS[VS_NPARAM] = {
     {0, 127, 64, 64, VS_SEC_EQ, VS_K_NUM, 73, 255, "FREQ"},                   /* 61 equalizer freq */
     {0, 127, 64, 64, VS_SEC_EQ, VS_K_SIGNED, 74, 255, "LEVEL"},               /* 62 equalizer level */
     {0, 127, 64, 64, VS_SEC_EQ, VS_K_NUM, 75, 255, "Q"},                      /* 63 equalizer Q */
-    {1, 4, 2, 2, VS_SEC_CHORUS, VS_K_ENUM, 82, 51, "TYPE"},                   /* 64 chorus type */
+    {1, 4, 2, 2, VS_SEC_CHORUS, VS_K_ENUM, 82, 53, "TYPE"},                   /* 64 chorus type */
     {0, 1, 0, 0, VS_SEC_DELAY, VS_K_SWITCH, 60, 255, "DELAY"},                /* 65 delay on/off */
     {0, 1, 0, 0, VS_SEC_CHORUS, VS_K_SWITCH, 61, 255, "CHORUS"},              /* 66 chorus on/off */
     {0, 1, 0, 0, VS_SEC_LFO1, VS_K_SWITCH, 8, 255, "TEMPO"},                  /* 67 lfo1 tempo sync */
     {0, 1, 0, 0, VS_SEC_LFO1, VS_K_SWITCH, 9, 255, "KEYSYNC"},                /* 68 lfo1 key sync */
     {0, 1, 0, 0, VS_SEC_LFO2, VS_K_SWITCH, 15, 255, "TEMPO"},                 /* 69 lfo2 tempo sync */
     {0, 1, 0, 0, VS_SEC_LFO2, VS_K_SWITCH, 16, 255, "KEYSYNC"},               /* 70 lfo2 key sync */
-    {0, 2, 0, 0, VS_SEC_MENV, VS_K_ENUM, 36, 55, "M.DEST"},                   /* 71 osc mod dest */
+    {0, 2, 0, 0, VS_SEC_MENV, VS_K_ENUM, 36, 57, "M.DEST"},                   /* 71 osc mod dest */
     {0, 127, 64, 64, VS_SEC_OSCC, VS_K_TABLE, 34, 255, "TUNE"},               /* 72 osc1,2 fine tune */
     {0, 1, 0, 0, VS_SEC_UNISON, VS_K_SWITCH, 91, 255, "UNISON"},              /* 73 unison mode */
     {0, 1, 0, 0, VS_SEC_VOICE, VS_K_SWITCH, 90, 255, "AUTO"},                 /* 74 portament auto mode */
     {0, 127, 22, 26, VS_SEC_UNISON, VS_K_NUM, 93, 255, "DETUNE"},             /* 75 unison detune */
     {0, 127, 0, 0, VS_SEC_OSC1, VS_K_NUM, 18, 255, "DETUNE"},                 /* 76 osc1 detune */
     {0, 1, 0, 0, VS_SEC_FX, VS_K_SWITCH, 59, 255, "EFFECT"},                  /* 77 effect on/off */
-    {0, 9, 0, 0, VS_SEC_FX, VS_K_ENUM, 62, 58, "TYPE"},                       /* 78 effect type */
+    {0, 9, 0, 0, VS_SEC_FX, VS_K_ENUM, 62, 60, "TYPE"},                       /* 78 effect type */
     {0, 127, 64, 64, VS_SEC_FX, VS_K_NUM, 63, 255, "CTRL 1"},                 /* 79 effect control1 */
     {0, 127, 64, 64, VS_SEC_FX, VS_K_NUM, 70, 255, "CTRL 2"},                 /* 80 effect control2 */
     {0, 127, 64, 64, VS_SEC_FX, VS_K_NUM, 71, 255, "LEVEL"},                  /* 81 effect level/mix */
-    {0, 2, 0, 0, VS_SEC_DELAY, VS_K_ENUM, 76, 68, "TYPE"},                    /* 82 delay type */
+    {0, 2, 0, 0, VS_SEC_DELAY, VS_K_ENUM, 76, 70, "TYPE"},                    /* 82 delay type */
     {0, 127, 66, 64, VS_SEC_DELAY, VS_K_SIGNED, 80, 255, "SPREAD"},           /* 83 delay time spread */
     {0, 127, 64, 64, VS_SEC_UNISON, VS_K_SIGNED, 94, 255, "SPREAD"},          /* 84 unison pan spread */
     {0, 48, 24, 24, VS_SEC_UNISON, VS_K_SIGNED, 95, 255, "PITCH"},            /* 85 unison pitch */
@@ -222,8 +222,8 @@ static const vs_param_info_t VS_PARAMS[VS_NPARAM] = {
     {2, 8, 2, 2, VS_SEC_UNISON, VS_K_NUM, 92, 255, "VOICES"},                 /* 93 unison voice num */
     {1, 32, 16, 16, VS_SEC_VOICE, VS_K_NUM, 255, 255, "POLY"},                /* 94 polyphony */
     {0, 127, 0, 0, VS_SEC_SUB, VS_K_NUM, 21, 255, "GAIN"},                    /* 95 osc1 sub gain */
-    {0, 3, 1, 3, VS_SEC_SUB, VS_K_ENUM, 22, 71, "SHAPE"},                     /* 96 osc1 sub shape */
-    {0, 1, 1, 1, VS_SEC_SUB, VS_K_ENUM, 23, 75, "OCTAVE"},                    /* 97 osc1 sub octave */
+    {0, 3, 1, 3, VS_SEC_SUB, VS_K_ENUM, 22, 73, "SHAPE"},                     /* 96 osc1 sub shape */
+    {0, 1, 1, 1, VS_SEC_SUB, VS_K_ENUM, 23, 77, "OCTAVE"},                    /* 97 osc1 sub octave */
     {0, 127, 64, 64, VS_SEC_DELAY, VS_K_SIGNED, 81, 255, "TONE"},             /* 98 delay tone */
 };
 
@@ -250,17 +250,17 @@ static const uint8_t VS_REC_ID[VS_NREC] = {
 };
 
 /* the enum parameters' value names (VS_PARAMS[].choice + value - min) */
-static const char VS_CHOICE[77][8] = {
+static const char VS_CHOICE[79][8] = {
     "SINE", "SAW", "PULSE", "TRI", "SAW", "PULSE", "TRI", "NOISE",
     "LP12", "LP24", "HP12", "BP12", "LPDL", "SH101", "UP&DOWN", "UP",
     "DOWN", "RANDOM", "1OCT", "2OCT", "3OCT", "4OCT", "POLY", "MONO",
     "LEGATO", "OSC2", "OSC1+2", "FILTER", "AMP", "P/W", "FM", "PAN",
-    "SAW", "TRI", "SQUARE", "S&H", "SMOOTH", "SINE", "OSC2", "OSC1+2",
-    "FILTER", "AMP", "P/W", "FM", "PAN", "SAW", "TRI", "SQUARE",
-    "S&H", "SMOOTH", "SINE", "1PH", "2PH", "3PH", "4PH", "OSC2",
-    "FM", "P/W", "AD1", "AD2", "DD", "DECI", "RM", "COMP",
-    "PH1", "PH2", "PH3", "PH4", "ST", "X", "PP", "SINE",
-    "TRI", "SAW", "SQUARE", "0", "-1",
+    "SAW", "TRI", "SQUARE", "S&H", "SMOOTH", "SINE", "RAMP", "OSC2",
+    "OSC1+2", "FILTER", "AMP", "P/W", "FM", "PAN", "SAW", "TRI",
+    "SQUARE", "S&H", "SMOOTH", "SINE", "RAMP", "1PH", "2PH", "3PH",
+    "4PH", "OSC2", "FM", "P/W", "AD1", "AD2", "DD", "DECI",
+    "RM", "COMP", "PH1", "PH2", "PH3", "PH4", "ST", "X",
+    "PP", "SINE", "TRI", "SAW", "SQUARE", "0", "-1",
 };
 
 /* the panel: a page's button, its title, page n of m, its four parameters (0xFF: an empty column) */

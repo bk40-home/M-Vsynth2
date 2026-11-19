@@ -337,6 +337,10 @@ static void knob_param(uint32_t id, ui_knob_t *k)  /* a parameter's knob */
         const int32_t a = pval(VS_P_FLT_AMOUNT) - 64;
         if (a) { k->mod = 1; k->m0 = k->v; k->m1 = ang_of(v + a * 2, 0, 127); }
     }
+    if (!k->mod && (k->w == W_VALUE || k->w == W_CENTRE) && pi->min == 0 && pi->max == 127) {
+        const int32_t pl = eng.ev[id];          /* the value the engine plays: the patch with the CTRL routes' offset */
+        if (pl != v) { k->mod = 1; k->m0 = k->v; k->m1 = ang_of(pl, pi->min, mx); }   /* show CC modulation live (#8) */
+    }
 }
 
 /* the cell: 60 x 90, the knob's 48 x 48 at (6, 2), the label at y 54, the value at 68 */
@@ -610,6 +614,7 @@ static void g_lfo(uint32_t n)
         case 4: { const uint32_t k = ph >> 13, f = (ph >> 5) & 255u;   /* smooth random: the steps, eased */
                   const int32_t e = (16384 - w_sin(f * 128u + 16384u)) / 2;
                   v = w_rnd(k) + (w_rnd(k + 1u) - w_rnd(k)) * e / 16384; break; }
+        case 6: v = (int32_t)((ph & 65535u) >> 1) - 16384; break;       /* ramp: rising saw */
         default: v = w_sin(ph); break;
         }
         yv[x] = (int16_t)(mid * 16 - v * amp * 16 / 16384);
@@ -887,23 +892,27 @@ static void g_unison(void)
     if (!on) chip(PX0 + PW, PY0 - 4, "UNISON OFF", T.dim, 2);
 }
 
+/* short section tags for the ASSIGN name, in VS_SEC_* order (the destination's parameter alone is ambiguous: FREQ is
+ * FILTER or EQ, DEPTH is an LFO or CHORUS, GAIN is AMP or SUB) */
+static const char *const SEC_AB[19] = {"OSC1", "OSC2", "OSC", "MENV", "FLT", "FENV", "AENV", "AMP", "ARP", "DLY",
+                                       "VCE", "CTL", "LFO1", "LFO2", "CHO", "EQ", "UNI", "FX", "SUB"};
 static void g_ctrl(void)
 {
-    /* the two routes: SRC -> ASSIGN, SENS; the bend's range */
-    char a[16], b[16], c[16];
+    /* the two routes: SRC -> ASSIGN (section + parameter), SENS; the bend's range. No arrow: the ASSIGN name needs
+     * the room (#8). */
+    char a[16], c[16], d[24];
     uint32_t r;
     for (r = 0; r < 2u; r++) {
         const int32_t y = PY0 + 2 + (int32_t)r * 30;
+        const int32_t dv = pval(r ? VS_P_CTRL_DST2 : VS_P_CTRL_DST1);
         ptext(r ? VS_P_CTRL_SRC2 : VS_P_CTRL_SRC1, a, sizeof a);
-        ptext(r ? VS_P_CTRL_DST2 : VS_P_CTRL_DST1, b, sizeof b);
         ptext(r ? VS_P_CTRL_SENS2 : VS_P_CTRL_SENS1, c, sizeof c);
+        if (dv < 0 || dv >= (int32_t)VS_NPARAM) put_s(d, dv < 0 ? "NONE" : "?")[0] = 0;
+        else { char *p = put_s(d, SEC_AB[VS_PARAMS[dv].sec]); *p++ = ' '; put_s(p, VS_PARAMS[dv].label)[0] = 0; }
         rrect(PX0, y, PW, 24, 4, T.raised);
-        txt_fit(PX0 + 8, y + 4, 64, &FONT_VAL, a, T.text, 0);
-        seg((PX0 + 78) * 16, (y + 12) * 16, (PX0 + 96) * 16, (y + 12) * 16, 20, T.theme);
-        seg((PX0 + 91) * 16, (y + 8) * 16, (PX0 + 96) * 16, (y + 12) * 16, 20, T.theme);
-        seg((PX0 + 91) * 16, (y + 16) * 16, (PX0 + 96) * 16, (y + 12) * 16, 20, T.theme);
-        txt_fit(PX0 + 104, y + 4, 70, &FONT_VAL, b, T.theme, 0);
-        txt_fit(PX0 + PW - 8, y + 4, 40, &FONT_VAL, c, T.dim, 2);
+        txt_fit(PX0 + 8, y + 4, 50, &FONT_VAL, a, T.text, 0);                /* SRC (NONE / CC n / BEND / PRESS) */
+        txt_fit(PX0 + 64, y + 4, 112, &FONT_VAL, d, dv < 0 ? T.dim : T.theme, 0);   /* ASSIGN, qualified */
+        txt_fit(PX0 + PW - 8, y + 4, 34, &FONT_VAL, c, T.dim, 2);            /* SENS */
     }
     ptext(VS_P_BEND_RANGE, a, sizeof a);
     r = (uint32_t)txt(PX0 + 2, PY1 - 14, &FONT_LAB, "BEND RANGE", T.dim);
