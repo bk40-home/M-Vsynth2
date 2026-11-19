@@ -77,6 +77,17 @@ assert.equal(fac.filter(Boolean).length, data.factory.length);
   assert.equal(A.fingerprint(Object.assign({}, pats[5], {home: undefined})), A.fingerprint(pats[5])); n++;
   await A.device.audition(dev, k);
   assert.deepEqual(dev.played[1].home, [43, 0x7F, 0x7F, 5]); n++;
+  /* LFO FADE (the own parameters): sent only when set, read back, kept by a fingerprint, auditioned */
+  const fd = Object.assign({}, pats[5], {own: [90, 200]});   /* (200: out of range, 0) */
+  assert.deepEqual(M.ownOf(fd), [90, 0]);
+  await A.device.write(dev, 6, 3, fd);
+  assert.deepEqual(dev.owns[6][3], [90, 0]); assert.deepEqual(dev.homes[6][3], [0x7F, 0x7F, 0x7F, 0x7F]);
+  assert.deepEqual((await A.device.readSlot(dev, 6, 3)).own, [90, 0]); n++;
+  assert.deepEqual((await A.device.readSlot(dev, 6, 2)).own, [0, 0]); n++;
+  assert.notEqual(A.fingerprint(fd), A.fingerprint(pats[5]));
+  assert.equal(A.fingerprint(Object.assign({}, pats[5], {own: undefined})), A.fingerprint(pats[5])); n++;
+  await A.device.audition(dev, fd);
+  assert.deepEqual(dev.played[2].own, [90, 0]); n++;
   /* a bank out as a zip of NNN.sy1 and back in */
   const z = FK.zip(u3.map((p, s) => p && {name: A.fileName(p, s), data: A.serialise(p)}).filter(Boolean));
   const back = await FK.unzip(z);

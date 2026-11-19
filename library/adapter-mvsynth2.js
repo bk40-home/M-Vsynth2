@@ -16,6 +16,12 @@
   const HOME_N = 4, HOME_DEF = 0x7F, REC7 = 138;
   const homeOf = p => { const h = (p && p.home) || []; return [0, 1, 2, 3].map(k => Number.isInteger(h[k]) && h[k] >= 0 && h[k] < NPARAM && !ROUTING.includes(h[k]) ? h[k] : HOME_DEF); };
   const homeDefault = p => homeOf(p).every(b => b === HOME_DEF);
+  /* M-Vsynth2's own parameters (vs_patch.h vs_own_get, Kris 19 Nov): LFO1 FADE, LFO2 FADE, a byte each 0..127 (0 = no
+   * fade). Not in a .sy1 either (a file's patch: 0). On the wire, after the knobs; sent only when one is set (so a
+   * firmware from before them, which refuses the longer message, still takes every patch without a fade) */
+  const OWN_N = 2;
+  const ownOf = p => { const o = (p && p.own) || []; return [0, 1].map(k => Number.isInteger(o[k]) && o[k] >= 0 && o[k] <= 127 ? o[k] : 0); };
+  const ownDefault = p => ownOf(p).every(b => b === 0);
 
   /* ---- .sy1, as tools/sy1.py */
   const clamp = (i, v) => Math.max(T.lo[i], Math.min(T.hi[i], v));
@@ -45,7 +51,7 @@
     /* the first line is the name (its encoding guessed); the rest is read as Latin-1 at once */
     let e = 0;
     while (e < bytes.length && bytes[e] !== 10 && bytes[e] !== 13) e++;
-    const p = {name: asciiName(bytes.subarray(0, e)), color: "default", version: 0, values: T.de.slice(), home: homeOf(null)};
+    const p = {name: asciiName(bytes.subarray(0, e)), color: "default", version: 0, values: T.de.slice(), home: homeOf(null), own: ownOf(null)};
     const lines = LATIN1.decode(bytes.subarray(e)).split(/\r\n|\r|\n/);
     for (const s of lines) {
       if (!s) continue;
@@ -72,17 +78,18 @@
     return r;
   }
   function empty() { const r = new Uint8Array(REC).fill(0); for (let i = 0; i < NAME; i++) r[i] = 32; r[NAME] = EMPTY; return r; }
-  function unpack(r, hk) {     /* hk: the four knob bytes after the record, if the FM-1 sent them */
+  function unpack(r, hk, ow) { /* hk: the four knob bytes after the record, ow: the own bytes after those, if sent */
     if (r[NAME] === EMPTY) return null;
     const v = new Array(NPARAM).fill(0);
     REC_ID.forEach((id, j) => { v[id] = clamp(id, r[NAME + j] + T.lo[id]); });
     ROUTING.forEach((id, k) => { const w = r[NAME + REC_ID.length + 2 * k] | r[NAME + REC_ID.length + 2 * k + 1] << 8; v[id] = w === 0xFFFF ? -1 : w; });
     return {name: String.fromCharCode(...r.slice(0, NAME)), color: COLORS[r[REC - 1]] || "default", version: 112, values: v,
-            home: homeOf({home: hk ? Array.from(hk) : null})};
+            home: homeOf({home: hk ? Array.from(hk) : null}), own: ownOf({own: ow ? Array.from(ow) : null})};
   }
   /* a record on the wire, the knobs after it only when one is not default (so a firmware from before them, which
    * refuses the longer message, still takes every patch that does not use them) */
-  const wire = p => homeDefault(p) ? pack7(pack(p)) : [...pack7(pack(p)), ...homeOf(p)];
+  const wire = p => ownDefault(p) ? (homeDefault(p) ? pack7(pack(p)) : [...pack7(pack(p)), ...homeOf(p)])
+                                   : [...pack7(pack(p)), ...homeOf(p), ...ownOf(p)];
   const write = p => p.name.trimEnd() + "\ncolor=" + p.color + "\nver=112\n" + p.values.map((v, i) => i + "," + v + "\n").join("");
 
   /* ---- the wire (vs_xfer.h) */
@@ -128,7 +135,8 @@
         if (!r || r[0] !== 0x11 || r[1] !== bank) return;
         const s = r[2];
         if (s < from || s >= from + n) return;
-        out[s - from] = unpack(unpack7(r.slice(3, 3 + REC7)), r.length >= 3 + REC7 + HOME_N ? r.slice(3 + REC7, 3 + REC7 + HOME_N) : null);
+        out[s - from] = unpack(unpack7(r.slice(3, 3 + REC7)), r.length >= 3 + REC7 + HOME_N ? r.slice(3 + REC7, 3 + REC7 + HOME_N) : null,
+                               r.length >= 3 + REC7 + HOME_N + OWN_N ? r.slice(3 + REC7 + HOME_N, 3 + REC7 + HOME_N + OWN_N) : null);
         got++;
         if (onProgress) onProgress(got);
         if (got >= n) { clearTimeout(t); off(); ok(out); } else arm();
@@ -144,7 +152,7 @@
   const MODE = ["POLY", "MONO", "LEGATO"];
   const v127 = x => Math.max(0, Math.min(1, x / 127));
 
-  FK.mvs = {parse, pack, unpack, write, empty, pack7, unpack7, msg, body, homeOf, REC7};   /* (the mock and the tests use them) */
+  FK.mvs = {parse, pack, unpack, write, empty, pack7, unpack7, msg, body, homeOf, ownOf, REC7};   /* (the mock and the tests use them) */
 
   FK.adapter = {
     id: "mvsynth2",
@@ -161,7 +169,7 @@
     colourOf: p => p.color,
     withName: (p, n) => Object.assign({}, p, {name: n.slice(0, NAME).padEnd(NAME), values: p.values.slice()}),
     withColour: (p, c) => Object.assign({}, p, {color: c, values: p.values.slice()}),
-    fingerprint: p => p.name.trimEnd() + "|" + p.color + "|" + p.values.join(",") + "|" + homeOf(p).join(","),
+    fingerprint: p => p.name.trimEnd() + "|" + p.color + "|" + p.values.join(",") + "|" + homeOf(p).join(",") + "|" + ownOf(p).join(","),
     soundKey: p => p.values.join(","),
     parseFile(name, bytes) { return /\.sy1$/i.test(name) ? [parse(bytes)] : null; },
     fileName: (p, slot) => FK.slotName(slot) + ".sy1",

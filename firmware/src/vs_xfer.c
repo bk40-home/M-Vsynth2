@@ -66,13 +66,16 @@ int vs_xfer_rx(vs_xfer_t *x, vs_prog_t *g, const uint8_t *body, uint32_t n, int 
     if (xf_sum(body + 3, n - 4u) != body[n - 1u]) { ack(x, cmd, 0, 0, VS_XF_BADMSG); return 1; }
     if (len >= 2u) { bb = d[0]; ss = d[1]; }
     switch (cmd) {
-    case VS_XF_WRITE:                           /* (the knobs after the record, or not: the defaults) */
-        if (len != 2u + VS_XF_REC7 && len != 2u + VS_XF_REC7 + VS_HOME_N) { ack(x, cmd, bb, ss, VS_XF_BADMSG); break; }
+    case VS_XF_WRITE:                           /* (the knobs and own after the record, or not: the defaults) */
+        if (len != 2u + VS_XF_REC7 && len != 2u + VS_XF_REC7 + VS_HOME_N && len != 2u + VS_XF_REC7 + VS_XF_EXTRA) {
+            ack(x, cmd, bb, ss, VS_XF_BADMSG); break;
+        }
         if (ss >= VS_NPROG) { ack(x, cmd, bb, ss, VS_XF_REFUSED); break; }
         if ((st = want_bank(g, bb, silent)) != VS_XF_OK) { ack(x, cmd, bb, ss, st); break; }
         vs_xfer_unpack7(d + 2, VS_XF_REC7, r.b);
         hk = len > 2u + VS_XF_REC7 ? d + 2u + VS_XF_REC7 : 0;
-        ack(x, cmd, bb, ss, vs_prog_write_rec(g, ss, &r, hk) ? VS_XF_BADMSG : VS_XF_OK);
+        ack(x, cmd, bb, ss, vs_prog_write_rec(g, ss, &r, hk, len > 2u + VS_XF_REC7 + VS_HOME_N ? d + 2u + VS_XF_REC7 + VS_HOME_N : 0)
+                            ? VS_XF_BADMSG : VS_XF_OK);
         break;
     case VS_XF_CLEAR:
         if (len != 2u || ss >= VS_NPROG) { ack(x, cmd, bb, ss, VS_XF_BADMSG); break; }
@@ -80,12 +83,15 @@ int vs_xfer_rx(vs_xfer_t *x, vs_prog_t *g, const uint8_t *body, uint32_t n, int 
         ack(x, cmd, bb, ss, vs_prog_clear(g, ss) ? VS_XF_REFUSED : VS_XF_OK);
         break;
     case VS_XF_PLAY:
-        if (len != VS_XF_REC7 && len != VS_XF_REC7 + VS_HOME_N) { ack(x, cmd, 0, 0, VS_XF_BADMSG); break; }
+        if (len != VS_XF_REC7 && len != VS_XF_REC7 + VS_HOME_N && len != VS_XF_REC7 + VS_XF_EXTRA) { ack(x, cmd, 0, 0, VS_XF_BADMSG); break; }
         vs_xfer_unpack7(d, VS_XF_REC7, r.b);
         if (vs_patch_unpack(&r, &x->play)) { ack(x, cmd, 0, 0, VS_XF_BADMSG); break; }
         vs_home_set(&x->play, len > VS_XF_REC7 ? d + VS_XF_REC7 : 0);
+        vs_own_set(&x->play, len > VS_XF_REC7 + VS_HOME_N ? d + VS_XF_REC7 + VS_HOME_N : 0);
         x->play_due = 1;
-        if (x->link_t) { vs_patch_pack(&x->play, &x->link_has); vs_home_get(&x->play, x->link_home); }   /* linked: the page has it (no echo) */
+        if (x->link_t) {                        /* linked: the page has it (no echo) */
+            vs_patch_pack(&x->play, &x->link_has); vs_home_get(&x->play, x->link_home); vs_own_get(&x->play, x->link_own);
+        }
         ack(x, cmd, 0, 0, VS_XF_OK);
         break;
     case VS_XF_READ:
@@ -129,7 +135,7 @@ static uint32_t frame(uint8_t *out, uint32_t cmd, const uint8_t *d, uint32_t len
 
 uint32_t vs_xfer_next(vs_xfer_t *x, vs_prog_t *g, uint8_t *out, uint32_t cap)
 {
-    uint8_t d[2u + VS_XF_REC7 + VS_HOME_N];
+    uint8_t d[2u + VS_XF_REC7 + VS_XF_EXTRA];
     uint32_t n = 0;
     if (cap < VS_XF_MSG_MAX) return 0;
     if (x->ack_due) {
@@ -147,9 +153,15 @@ uint32_t vs_xfer_next(vs_xfer_t *x, vs_prog_t *g, uint8_t *out, uint32_t cap)
         vs_xfer_pack7(g->r[x->rd_slot].b, VS_REC, d + 2);
         {
             uint32_t k;
+            vs_patch_t p;
+            uint8_t ow[VS_NOWN];
             for (k = 0; k < VS_HOME_N; k++) d[2u + VS_XF_REC7 + k] = g->home[x->rd_slot][k];
+            vs_patch_init(&p);                  /* (own as INIT; a stored 0xFF reads as that too) */
+            vs_own_set(&p, g->own[x->rd_slot]);
+            vs_own_get(&p, ow);
+            for (k = 0; k < VS_NOWN; k++) d[2u + VS_XF_REC7 + VS_HOME_N + k] = ow[k];
         }
-        n = frame(out, VS_XF_DATA, d, 2u + VS_XF_REC7 + VS_HOME_N);
+        n = frame(out, VS_XF_DATA, d, 2u + VS_XF_REC7 + VS_XF_EXTRA);
         x->rd_slot++; x->rd_n--;
     } else x->rd_n = 0;                         /* (the bank changed under the read: it ends) */
     if (n) x->tx_n++;
@@ -159,7 +171,7 @@ uint32_t vs_xfer_next(vs_xfer_t *x, vs_prog_t *g, uint8_t *out, uint32_t cap)
 uint32_t vs_xfer_link(vs_xfer_t *x, const vs_patch_t *now, int busy, uint32_t ms, uint8_t *out, uint32_t cap)
 {
     vs_rec_t r;
-    uint8_t hk[VS_HOME_N];
+    uint8_t hk[VS_HOME_N], ow[VS_NOWN];
     uint32_t i;
     if (cap < VS_XF_MSG_MAX || busy) return 0;
     if (x->link_req) {                          /* LINK: the dump, whatever the page has */
@@ -171,20 +183,26 @@ uint32_t vs_xfer_link(vs_xfer_t *x, const vs_patch_t *now, int busy, uint32_t ms
         if (ms - x->link_tx < VS_XF_LINK_GAP) return 0;
         vs_patch_pack(now, &r);
         vs_home_get(now, hk);
+        vs_own_get(now, ow);
         for (i = 0; i < VS_REC && r.b[i] == x->link_has.b[i]; i++) {}
         if (i == VS_REC) {
             for (i = 0; i < VS_HOME_N && hk[i] == x->link_home[i]; i++) {}
-            if (i == VS_HOME_N) return 0;       /* the page has it */
+            if (i == VS_HOME_N) {
+                for (i = 0; i < VS_NOWN && ow[i] == x->link_own[i]; i++) {}
+                if (i == VS_NOWN) return 0;     /* the page has it */
+            }
         }
     }
     vs_patch_pack(now, &x->link_has);
     vs_home_get(now, x->link_home);
+    vs_own_get(now, x->link_own);
     {
-        uint8_t d[VS_XF_REC7 + VS_HOME_N];
+        uint8_t d[VS_XF_REC7 + VS_XF_EXTRA];
         vs_xfer_pack7(x->link_has.b, VS_REC, d);
         for (i = 0; i < VS_HOME_N; i++) d[VS_XF_REC7 + i] = x->link_home[i];
+        for (i = 0; i < VS_NOWN; i++) d[VS_XF_REC7 + VS_HOME_N + i] = x->link_own[i];
         x->link_tx = ms;
         x->tx_n++;
-        return frame(out, VS_XF_EDIT, d, VS_XF_REC7 + VS_HOME_N);
+        return frame(out, VS_XF_EDIT, d, VS_XF_REC7 + VS_XF_EXTRA);
     }
 }

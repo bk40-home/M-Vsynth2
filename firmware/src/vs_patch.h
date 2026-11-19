@@ -43,7 +43,8 @@
 #define VS_HOME_DEF 0x7Fu                       /* a stored knob byte: the default */
 
 typedef struct {
-    int32_t v[VS_NPARAM];                       /* native values (the routing words: -1 none, else 0..65535) */
+    int32_t v[VS_NALL];                         /* native values (the routing words: -1 none, else 0..65535); from
+                                                   VS_NPARAM on M-Vsynth2's own (LFO FADE): not in the record */
     char name[VS_NAME];
     uint8_t color;
     uint8_t home[VS_HOME_N];                    /* the parameter each HOME knob turns (always a valid one: vs_home_ok) */
@@ -68,6 +69,12 @@ uint8_t vs_home_default(uint32_t k);
 int vs_home_ok(uint32_t id);
 void vs_home_set(vs_patch_t *p, const uint8_t *b);
 void vs_home_get(const vs_patch_t *p, uint8_t *b);
+
+/* M-Vsynth2's own parameters (VS_NPARAM.., not in the record or a .sy1): kept apart like HOME's knobs, a byte each
+ * (value - min). Into p: NULL or a byte out of range (an erased 0xFF from a bank written before them): the INIT
+ * value. Back out: the bytes. */
+void vs_own_set(vs_patch_t *p, const uint8_t *b);
+void vs_own_get(const vs_patch_t *p, uint8_t *b);
 
 /* The panel's own CC map (VS_CC_PARAM, decision 9: Synth1 has none of its own): a CC value 0..127 scaled onto the
  * parameter's range, as Synth2's MIDI learn scales it (ScaledValueForCC). Returns the parameter id, or -1. */

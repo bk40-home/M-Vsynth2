@@ -9,7 +9,8 @@ Inputs:
   Synth2 (tools/synth2.py says where)   EngineCore/Params.hpp (ranges, the original's defaults), InitPatch.hpp (INIT),
                                         MeasuredTables.hpp, Lfo.hpp, Effects.hpp (what a value reads as)
   tools/vsynth2-params.yaml             our overlay: C name, panel label, section, kind, CC, choices; the pages; hi: a
-                                        range end of our own past Synth2's (FILTER TYPE 5, SH101)
+                                        range end of our own past Synth2's (FILTER TYPE 5, SH101); own: M-Vsynth2's
+                                        parameters past Synth1's 99 (ids 99.., full ranges given: Synth2 has none)
 
 What comes out (all const, so it costs flash, not RAM):
   VS_P_<KEY>         the parameter index (= the .sy1 line index)
@@ -85,15 +86,26 @@ def main():
         print(note)
     rows, init = synth2.params(s2)
     y = yaml.safe_load(OVL.read_text(encoding="utf-8"))
-    ovl, pages, fxk = y["params"], y["pages"], y["fx_knobs"]
+    ovl, pages, fxk, own = y["params"], y["pages"], y["fx_knobs"], y.get("own") or {}
     if sorted(ovl) != list(range(99)):
         fail("the overlay must have parameters 0..98")
+    if sorted(own) != list(range(99, 99 + len(own))):
+        fail("own parameters are numbered on from 99")
+    for i in own:                               # (own: no Synth2 row, so the overlay gives the range and both inits)
+        o = own[i]
+        if o.get("cc") is not None or o["kind"] in ("enum", "src", "dst"): fail(f"own {i}: no CC, enum or route")
+        if not (o["lo"] <= o["def"] <= o["hi"] and o["lo"] <= o["init"] <= o["hi"]): fail(f"own {i}: def or init out of range")
+        if o["hi"] - o["lo"] > 127: fail(f"own {i}: 128 values at most (stored and sent as one 7-bit byte, value - lo)")
+        rows.append((None, o["key"].lower(), o["lo"], o["hi"], o["def"]))
+        init = list(init) + [o["init"]]
+        ovl[i] = o
+    nall = 99 + len(own)
     for i in range(99):                         # M-Vsynth2's own range ends (the overlay's hi: FILTER TYPE's SH101)
         if "hi" in ovl[i]:
             if ovl[i]["hi"] < rows[i][3]: fail(f"{i}: hi {ovl[i]['hi']} is below Synth2's {rows[i][3]}")
             rows[i] = (*rows[i][:3], ovl[i]["hi"], rows[i][4])
     secs, keys, choices, ch0, ccs = [], set(), [], {}, {}
-    for i in range(99):
+    for i in range(nall):
         o, (_, _, lo, hi, de) = ovl[i], rows[i]
         if o["kind"] not in KINDS: fail(f"{i}: kind {o['kind']}")
         if len(o["label"]) > 7: fail(f"{i}: label {o['label']!r} is longer than 7")
@@ -125,7 +137,8 @@ def main():
         seen += [i for i in ids if i != 255]
         out_pages.append((p["btn"], p["title"], idx[k], count[k], ids))
     if len(seen) != len(set(seen)): fail("a parameter is on two pages")
-    if sorted(set(range(99)) - set(seen)) != [59]: fail(f"not on a page: {sorted(set(range(99)) - set(seen))} (only 59 may be)")
+    if sorted(set(range(nall)) - set(seen)) != [59]: fail(f"not on a page: {sorted(set(range(nall)) - set(seen))} (only 59 may be)")
+    if any(i >= nall for i in seen): fail("a page names a parameter that is not one")
     # ---- what values read as (Synth2's laws)
     mt = (s2 / "EngineCore/MeasuredTables.hpp").read_text()
     semis = [int(v) for v in synth2.c_array(mt, "kOsc2PitchSemis")]
@@ -146,8 +159,11 @@ def main():
          " * InitPatch.hpp, MeasuredTables.hpp, Lfo.hpp, Effects.hpp: MIT, Copyright (c) 2026 Francois Chabloz).",
          " * Do not edit by hand. The 99 Synth1 parameters in Synth1's own index order (= the .sy1 line index), native",
          " * integer values. */", "#pragma once", "#include <stdint.h>", "",
-         "#define VS_NPARAM 99u", "#define VS_NREC 95u                             /* parameters stored a byte each (vs_patch.h) */", "", "enum {"]
-    h += [f"    VS_P_{ovl[i]['key']} = {i}," for i in range(99)] + ["};", ""]
+         "#define VS_NPARAM 99u                           /* Synth1's: the record, a .sy1, the routes, the CC map */",
+         f"#define VS_NOWN {len(own)}u                              /* M-Vsynth2's own, ids VS_NPARAM.. (the bank keeps them apart) */",
+         "#define VS_NALL (VS_NPARAM + VS_NOWN)           /* every parameter: the patch's values, the table, the pages */",
+         "#define VS_NREC 95u                             /* parameters stored a byte each (vs_patch.h) */", "", "enum {"]
+    h += [f"    VS_P_{ovl[i]['key']} = {i}," for i in range(nall)] + ["};", ""]
     h += ["enum { " + ", ".join(f"VS_SEC_{s}" for s in secs) + " };",
           "enum { " + ", ".join(f"VS_K_{k.upper()}" for k in KINDS) + " };",
           "enum { " + ", ".join(f"VS_BTN_{b}" for b in BUTTONS) + " };   /* a page's button (vs_ui.c maps it to the platform's) */", "",
@@ -159,9 +175,9 @@ def main():
           "    uint8_t cc;                                 /* the panel's CC, 0xFF none */",
           "    uint8_t choice;                             /* VS_K_ENUM: its first name in VS_CHOICE (value min) */",
           "    char label[8];                              /* panel label */", "} vs_param_info_t;", "",
-          "static const vs_param_info_t VS_PARAMS[VS_NPARAM] = {"]
+          "static const vs_param_info_t VS_PARAMS[VS_NALL] = {"]
     inv = {i: c for c, i in ccs.items()}
-    for i in range(99):
+    for i in range(nall):
         o, (_, name, lo, hi, de) = ovl[i], rows[i]
         ent = f"{{{lo}, {hi}, {de}, {init[i]}, VS_SEC_{o['sec']}, VS_K_{o['kind'].upper()}, {inv.get(i, 255)}, {ch0.get(i, 255)}, {c_str(o['label'])}}},"
         h.append(f"    {ent:<74}/* {i} {name} */")
@@ -187,7 +203,7 @@ def main():
     if any(len(k) > 7 for k in flat) or len(flat) != 30: fail("fx_knobs: 3 names of 7 at most a type")
     h += texts("VS_FX_KNOB", flat, 8, "EFFECT's CTRL 1, CTRL 2, LEVEL by type: VS_FX_KNOB[type x 3 + knob]")
     OUT.write_text("\n".join(h))
-    print(f"gen_params: {OUT.relative_to(ROOT)}: 99 parameters, {len(out_pages)} pages, {len(ccs)} CCs, {len(choices)} choice names")
+    print(f"gen_params: {OUT.relative_to(ROOT)}: 99 + {len(own)} own parameters, {len(out_pages)} pages, {len(ccs)} CCs, {len(choices)} choice names")
 
 
 main()

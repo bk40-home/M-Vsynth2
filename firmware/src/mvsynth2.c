@@ -96,7 +96,11 @@ static struct {
                                                    (one byte shorter) still loads, with ON (app_main) */
 } set;
 static uint8_t set_dirty;
-static uint32_t set_t;
+/* a setting changed: saved once settings have rested 2 s (scrolling PRESETS or turning a GLOBAL knob is never cut by
+ * a flash erase, which holds the interrupts off and so loses the knob's steps), and never while GLOBAL is up: leaving
+ * it saves (Kris 19 Nov) */
+static uint32_t set_chg;
+static void set_changed(void) { set_dirty = 1; set_chg = fm1_ms; }
 
 /* ---- programs */
 static vs_prog_t prog;
@@ -113,7 +117,7 @@ static void prog_service(void)                  /* main loop: bring the slot ask
     if (bank_want >= 0 && (uint32_t)bank_want != prog.bank) {   /* a bank change: the old one to flash first */
         if (prog.dirty && (eng.act || vs_prog_flush(&prog))) return;   /* (busy: the next loop) */
         vs_prog_load(&prog, (uint32_t)bank_want);
-        set.bank = prog.bank; set_dirty = 1;
+        set.bank = prog.bank; set_changed();
         slot_want = vs_prog_empty(&prog, slot_want) ? vs_prog_next(&prog, slot_want, 1) : slot_want;
         want_reload = 1;
     }
@@ -131,7 +135,7 @@ static void prog_service(void)                  /* main loop: bring the slot ask
     if (vs_prog_get(&prog, slot_want, &p)) { slot_want = slot; want_reload = 0; return; }   /* empty: stays */
     if (vs_engine_load(&eng, &p)) return;       /* one is still landing: the next loop */
     slot = slot_want; want_reload = 0; edited = 0;
-    set.slot = (uint8_t)slot; set_dirty = 1;
+    set.slot = (uint8_t)slot; set_changed();
     for (i = 0; i < VS_NAME; i++) prog_name[i] = p.name[i];
     prog_name[VS_NAME] = 0;
     for (i = VS_NAME; i > 0u && prog_name[i - 1u] == ' '; i--) prog_name[i - 1u] = 0;   /* (centred: no trailing spaces) */
@@ -211,19 +215,19 @@ static uint32_t pc_cpu1, pc_wait;                /* per core: CPU1's voice rende
 /* HOME KNOBS (GLO, Kris 18 Nov): what HOME's KNOB 1..4 turn, kept with the patch (eng.patch.home, vs_patch.h). A
  * knob there steps through the parameters a HOME knob may take, in page order (LFO 1 .. ARP, as ALGORITHM walks
  * them), then any on no page (ARP's on/off, on its button) */
-static uint8_t home_list[VS_NPARAM], home_n;
+static uint8_t home_list[VS_NALL], home_n;
 static void home_list_build(void)
 {
-    uint8_t seen[VS_NPARAM];
+    uint8_t seen[VS_NALL];
     uint32_t k, c;
-    for (k = 0; k < VS_NPARAM; k++) seen[k] = 0;
+    for (k = 0; k < VS_NALL; k++) seen[k] = 0;
     home_n = 0;
     for (k = 0; k < VS_NPAGE; k++)
         for (c = 0; c < 4u; c++) {
             const uint32_t id = VS_PAGES[k].id[c];
-            if (id < VS_NPARAM && !seen[id] && vs_home_ok(id)) { seen[id] = 1; home_list[home_n++] = (uint8_t)id; }
+            if (id < VS_NALL && !seen[id] && vs_home_ok(id)) { seen[id] = 1; home_list[home_n++] = (uint8_t)id; }
         }
-    for (k = 0; k < VS_NPARAM; k++) if (!seen[k] && vs_home_ok(k)) home_list[home_n++] = (uint8_t)k;
+    for (k = 0; k < VS_NALL; k++) if (!seen[k] && vs_home_ok(k)) home_list[home_n++] = (uint8_t)k;
 }
 static uint32_t home_pos(uint32_t id) { uint32_t i; for (i = 0; i < home_n; i++) if (home_list[i] == id) return i; return 0; }
 static uint32_t home_page(uint32_t id)          /* the page a parameter is on (VS_NPAGE: none, ARP's on/off) */
@@ -345,8 +349,12 @@ static void edit(uint32_t id, int32_t e)
 }
 static void global_edit(uint32_t k, int32_t e)
 {
+    static uint32_t t_k[4];                     /* when knob k last moved: M-vance's fast turn (mv_ui.c) */
     int32_t v;
+    const int fast = k < 4u && fm1_ms - t_k[k] < 40u;   /* detents < 40 ms apart: x4 on the long scrolls only */
+    if (k < 4u) t_k[k] = fm1_ms;
     if (gpage == GP_DIAG) return;               /* GLOBAL 3/3: DIAG, read only */
+    if (fast && (gpage == GP_KNOBS || (gpage == GP_MAIN && k == 2u))) e *= 4;   /* HOME KNOBS' list, TEMPO (not MIDI CH, VOICES, choices) */
     if (gpage == GP_KNOBS) {                    /* HOME KNOBS: the patch's, so it is edited (SAVE keeps it) */
         if (k >= VS_HOME_N || !home_n) return;
         v = (int32_t)home_pos(eng.patch.home[k]) + e;
@@ -361,7 +369,7 @@ static void global_edit(uint32_t k, int32_t e)
         else if (k == 2u) { if (set.bt == (e > 0)) return; set.bt = e > 0; fk_ble_enable(set.bt); }   /* (the first ON
                                                    holds the main loop ~0.5 s while the radio calibrates) */
         else return;
-        set_dirty = 1;
+        set_changed();
         ui_gtouch();
         return;
     }
@@ -369,7 +377,7 @@ static void global_edit(uint32_t k, int32_t e)
     else if (k == 1u) { v = set.voices + e; set.voices = (uint8_t)(v < 1 ? 1 : v > (int32_t)VS_NV ? (int32_t)VS_NV : v); eng.nv = set.voices; }
     else if (k == 2u) { v = set.tempo + e; set.tempo = (uint8_t)(v < 40 ? 40 : v > 240 ? 240 : v); }
     else return;
-    set_dirty = 1;
+    set_changed();
     ui_gtouch();
 }
 
@@ -411,8 +419,8 @@ static void app_main(void)
             if (up >> k & 1u) { vs_engine_note_off(&eng, held[k]); midi_send(0x80u, held[k], 0); }
         }
         b = fm1_input_edges(&rel);
-        if (b & (1u << BTN_OCT_DOWN) && set.oct > -2) { set.oct--; set_dirty = 1; }
-        if (b & (1u << BTN_OCT_UP) && set.oct < 2) { set.oct++; set_dirty = 1; }
+        if (b & (1u << BTN_OCT_DOWN) && set.oct > -2) { set.oct--; set_changed(); }
+        if (b & (1u << BTN_OCT_UP) && set.oct < 2) { set.oct++; set_changed(); }
         if ((fm1_in.buttons & (1u << BTN_OCT_DOWN | 1u << BTN_OCT_UP)) == (1u << BTN_OCT_DOWN | 1u << BTN_OCT_UP)) {
             if (!panic_t) panic_t = fm1_ms ? fm1_ms : 1u;   /* both held 1 s: all notes off */
             else if (fm1_ms - panic_t >= 1000u && panic_t != 1u) { vs_engine_all_off(&eng); panic_t = 1u; speak_panic(); }
@@ -436,7 +444,7 @@ static void app_main(void)
                 }
                 const int ok = !vs_prog_write(&prog, save_slot, &p);
                 if (ok) {
-                    slot = slot_want = save_slot; edited = 0; set.slot = (uint8_t)slot; set_dirty = 1;
+                    slot = slot_want = save_slot; edited = 0; set.slot = (uint8_t)slot; set_changed();
                     for (i = 0; i < VS_NAME; i++) eng.patch.name[i] = prog_name[i] = save_name[i];
                     prog_name[VS_NAME] = 0;
                     for (i = VS_NAME; i > 0u && prog_name[i - 1u] == ' '; i--) prog_name[i - 1u] = 0;
@@ -493,12 +501,17 @@ static void app_main(void)
             }
             if (n) xfer_t = fm1_ms ? fm1_ms : 1u;
         }
+        {   /* leaving GLOBAL: its settings save at the next silence, the 2 s rest waived (set_changed) */
+            static uint32_t scr_was;
+            if (scr_was == SCR_GLOBAL && scr != SCR_GLOBAL) set_chg = fm1_ms - 2000u;
+            scr_was = scr;
+        }
         /* flash, only when nothing has sounded for 0.5 s (an erase holds the interrupts off) */
         silent = eng.act == 0u;
         if (!silent) quiet_t = fm1_ms;
         if (silent && fm1_ms - quiet_t >= 500u) {
             if (prog.dirty) (void)vs_prog_flush(&prog);
-            if (set_dirty && fm1_ms - set_t >= 2000u) { set_dirty = 0; set_t = fm1_ms; (void)settings_save(&set, sizeof set); }
+            if (set_dirty && scr != SCR_GLOBAL && fm1_ms - set_chg >= 2000u) { set_dirty = 0; (void)settings_save(&set, sizeof set); }
         }
 
         if (fm1_ms - cpu_t >= 250u && !cpu_clear) {   /* the meter, 4 times a second; the peak over 12 of them: 3 s */

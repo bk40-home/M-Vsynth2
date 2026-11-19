@@ -6,6 +6,7 @@
 #include "vs_tables.h"
 #include "vs_bus_tables.h"
 #include "vs_fixed.h"
+#include "vs_fade.h"                            /* LFO FADE: M-vance's attack law (same block, same rate) */
 
 #define ONE30 (1 << 30)
 #define GRID 256u                               /* the amp gain's and the voice end's grid (frames) */
@@ -113,6 +114,7 @@ void vs_engine_init(vs_engine_t *e)
     vs_lim_init(&e->lim);
     e->limit = 1;
     vs_lfo_reset(&e->lfo[0]); vs_lfo_reset(&e->lfo[1]);
+    e->lfo_gain[0] = e->lfo_gain[1] = VS_FADE_FULL_Q30; e->lfo_fading[0] = e->lfo_fading[1] = 0;
     e->bpm_q8 = 120u << 8;
     for (i = 0; i < 4u; i++) e->down[i] = e->held[i] = 0;
     for (i = 0; i < VS_NV; i++) {
@@ -867,6 +869,8 @@ static void events(vs_engine_t *e, const blk_t *b)
             e->down[note >> 5] |= bit;
             e->held[note >> 5] &= ~bit;
             e->kvel[note] = (uint8_t)vel;
+            for (i = 0; i < 2u; i++)            /* FADE: a key down (not an arp step) fades the depth in from 0 */
+                if (e->ev[i ? VS_P_LFO2_FADE : VS_P_LFO1_FADE] > 0) { e->lfo_gain[i] = 0; e->lfo_fading[i] = 1; }
             if (e->ev[VS_P_ARP_ON]) arp_note_on(e, note, vel);   /* the arp plays it */
             else note_on(e, b, note, vel, 1);
             break;
@@ -1418,7 +1422,7 @@ static void routes_apply(vs_engine_t *e)
     static const uint8_t SRC[2] = {VS_P_CTRL_SRC1, VS_P_CTRL_SRC2}, DST[2] = {VS_P_CTRL_DST1, VS_P_CTRL_DST2},
                          SENS[2] = {VS_P_CTRL_SENS1, VS_P_CTRL_SENS2};
     uint32_t k;
-    for (k = 0; k < VS_NPARAM; k++) e->ev[k] = e->patch.v[k];
+    for (k = 0; k < VS_NALL; k++) e->ev[k] = e->patch.v[k];
     for (k = 0; k < 2u; k++) {
         const int32_t t = e->patch.v[DST[k]], w = e->patch.v[SRC[k]], sens = e->patch.v[SENS[k]];
         const int32_t d = sens >= 64 ? sens - 64 : sens <= 62 ? sens - 63 : 0;
@@ -1440,21 +1444,35 @@ static void routes_apply(vs_engine_t *e)
 static void lfo_block(vs_engine_t *e, const blk_t *b, lfo_mod_t *lm, int32_t pan[2][VS_CTL], uint32_t n)
 {
     const int32_t *p = e->ev;
-    int32_t lv[2][VS_CTL], st[2][VS_CTL], q, pl, pr;
+    int32_t lv[2][VS_CTL], st[2][VS_CTL], sc2[2], q, pl, pr;
     uint32_t k, i;
     for (k = 0; k < 2u; k++) {
         const int32_t dest = p[k ? VS_P_LFO2_DEST : VS_P_LFO1_DEST], on = p[k ? VS_P_LFO2_ON : VS_P_LFO1_ON];
+        const int32_t fade = vs_clamp(p[k ? VS_P_LFO2_FADE : VS_P_LFO1_FADE], 0, 127);
+        int32_t depth = vs_clamp(p[k ? VS_P_LFO2_DEPTH : VS_P_LFO1_DEPTH], 0, 127), g;
+        /* FADE (M-vance mv_lfo_tick's attack generator, once a control block): charge toward 1.25, stop at full; the
+           unit wave runs on untouched, the depth is scaled (as the JT: depth x gain, then the law) */
+        if (!fade) { e->lfo_gain[k] = VS_FADE_FULL_Q30; e->lfo_fading[k] = 0; }
+        else if (e->lfo_fading[k]) {
+            int32_t gn = VS_FADE_TARGET_Q30 - (int32_t)(((int64_t)(VS_FADE_TARGET_Q30 - e->lfo_gain[k]) * (int64_t)VS_FADE_COEF[fade]
+                                                        + 0x40000000) >> 31);
+            if (gn >= VS_FADE_FULL_Q30) { gn = VS_FADE_FULL_Q30; e->lfo_fading[k] = 0; }
+            e->lfo_gain[k] = gn;
+        }
+        g = e->lfo_gain[k];
+        sc2[k] = g >= VS_FADE_FULL_Q30 ? b->lfo_sc[k] : (int32_t)(((int64_t)b->lfo_sc[k] * g) >> 30);
+        if (g < VS_FADE_FULL_Q30) depth = (int32_t)(((int64_t)depth * g + (1 << 29)) >> 30);
         const uint32_t inc = vs_lfo_inc((uint32_t)vs_clamp(p[k ? VS_P_LFO2_SPEED : VS_P_LFO1_SPEED], 0, 127),
                                         p[k ? VS_P_LFO2_TEMPO : VS_P_LFO1_TEMPO] != 0, e->bpm_q8);
         const int pitch = on && dest <= 2;
         vs_lfo_render(&e->lfo[k], n, (uint32_t)vs_clamp(p[k ? VS_P_LFO2_TYPE : VS_P_LFO1_TYPE], 0, 6), inc, lv[k],
-                      pitch ? st[k] : 0, (int32_t)VS_LFO_STEPS[vs_clamp(p[k ? VS_P_LFO2_DEPTH : VS_P_LFO1_DEPTH], 0, 127)],
+                      pitch ? st[k] : 0, (int32_t)VS_LFO_STEPS[depth],
                       dest == 4);
     }
     for (i = 0; i < n; i++) {
         int32_t sa = 0, s2 = 0, pw = 0, fm = 0, cu = 0, am = 32768, ps = 0;
         for (k = 0; k < 2u; k++) {
-            const int32_t sc = b->lfo_sc[k], v = lv[k][i];
+            const int32_t sc = sc2[k], v = lv[k][i];
             const int32_t sv = (int32_t)(((int64_t)sc * v) >> 18), su = (int32_t)(((int64_t)sc * ((int64_t)v + (1 << 30))) >> 19);   /* Q28 */
             switch (b->lfo_dest[k]) {
             case 1: s2 += st[k][i]; break;

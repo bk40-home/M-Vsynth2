@@ -9,12 +9,15 @@
  * The FM-1 sends them after every record; it takes a record with them or without (without: the defaults), so a
  * sender from before them still works, and a reader from before them sees one 7-byte group too many at the end of
  * the packed record (its unpack gives 3 bytes past the 120, which it does not read).
+ * ow: the own parameters (vs_patch.h vs_own_get: LFO1 FADE, LFO2 FADE), VS_NOWN 7-bit bytes after hk, the same way:
+ * sent after every hk, taken with or without (without: INIT). A reader from before them reads hk by place and
+ * leaves what follows; a sender from before them sends none.
  *
  * To the FM-1:
- *   01 bb ss rec [hk]  WRITE  the patch into the slot (bank 1..8). The bank comes into RAM if it was not; flash at
+ *   01 bb ss rec [hk [ow]]  WRITE  the patch into the slot (bank 1..8). The bank comes into RAM if it was not; flash at
  *                          the next silence (vs_prog.h). Acknowledged
  *   02 bb ss       CLEAR   the slot emptied. Acknowledged
- *   03 rec [hk]    PLAY    an audition: the patch plays now, nothing is saved. Acknowledged
+ *   03 rec [hk [ow]]  PLAY    an audition: the patch plays now, nothing is saved. Acknowledged
  *   04 bb ss nn    READ    nn slots from ss (nn 0: to the bank's end): one DATA each, one a main-loop pass
  *   05             IDENT   answered with IDENT
  *   06 bb ss       SELECT  the bank and the slot, as the panel would (an empty slot: the bank only). Acknowledged
@@ -23,9 +26,9 @@
  *                          the last LINK: a page renews it. A PLAY while linked is taken as what the page has, so
  *                          it is not reported back (the simulator's Link FM-1, sim/link.js)
  * From the FM-1:
- *   11 bb ss rec hk  DATA  a slot as stored (empty: the record's empty mark, rec[16] = 7F; hk all 7F)
+ *   11 bb ss rec hk ow  DATA  a slot as stored (empty: the record's empty mark, rec[16] = 7F; hk all 7F)
  *   15 text..      IDENT   "M-VSYNTH2 " the version, then 00, VS_NV, VS_NBANK
- *   17 rec hk      EDIT    what plays now (the edit buffer), linked only (07)
+ *   17 rec hk ow   EDIT    what plays now (the edit buffer), linked only (07)
  *   7F cmd bb ss st  ACK   st: 0 done, 1 a bad message (sum, length), 2 refused (FACTORY, a bank or slot out of
  *                          range), 3 busy (the bank in RAM has unsaved changes and something sounds: send it again)
  * A sender waits for each ACK (docs/bank.html, tools/sy1_xfer.py): nothing is lost, nothing waits longer than it
@@ -36,7 +39,8 @@
 #include "vs_voice.h"
 
 #define VS_XF_REC7 138u                         /* a record, 7-bit packed */
-#define VS_XF_MSG_MAX (9u + VS_XF_REC7 + VS_HOME_N)   /* the longest, F0 .. F7: a DATA (F0 7D 4D 56 11 bb ss rec hk sum F7) */
+#define VS_XF_EXTRA (VS_HOME_N + VS_NOWN)      /* after a record: hk, ow */
+#define VS_XF_MSG_MAX (9u + VS_XF_REC7 + VS_XF_EXTRA)   /* the longest, F0 .. F7: a DATA (F0 7D 4D 56 11 bb ss rec hk ow sum F7) */
 
 enum { VS_XF_WRITE = 1, VS_XF_CLEAR, VS_XF_PLAY, VS_XF_READ, VS_XF_IDENT, VS_XF_SELECT, VS_XF_LINK,
        VS_XF_DATA = 0x11, VS_XF_IDREP = 0x15, VS_XF_EDIT = 0x17, VS_XF_ACK = 0x7F };
@@ -56,6 +60,7 @@ typedef struct {
     uint32_t link_t, link_tx;                   /* the last LINK's ms (0: not linked), the last report's */
     vs_rec_t link_has;                          /* what the page has (the last EDIT sent, or the PLAY it sent) */
     uint8_t link_home[VS_HOME_N];               /* .. and its HOME knobs (vs_home_get's bytes) */
+    uint8_t link_own[VS_NOWN];                  /* .. and its own parameters (vs_own_get's bytes) */
 } vs_xfer_t;
 
 void vs_xfer_init(vs_xfer_t *x);

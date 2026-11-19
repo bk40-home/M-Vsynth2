@@ -505,7 +505,7 @@ static void readout(void)                       /* the knob in hand, large, at t
     char s[16];
     int32_t w;
     const char *lab;
-    if (!ui_hot(big_id) || big_id >= VS_NPARAM) return;
+    if (!ui_hot(big_id) || big_id >= VS_NALL) return;
     lab = vs_param_label(big_id, P(VS_P_FX_TYPE));
     ptext(big_id, s, sizeof s);
     w = text_w(&FONT_BIG, s);
@@ -1127,7 +1127,7 @@ static void ui_panel(uint32_t kind, uint32_t key, uint32_t min_ms)
 static uint32_t ui_patch_key(void)
 {
     uint32_t i, h = 2166136261u;
-    for (i = 0; i < VS_NPARAM; i++) h = hsh(h, (uint32_t)eng.patch.v[i]);
+    for (i = 0; i < VS_NALL; i++) h = hsh(h, (uint32_t)eng.patch.v[i]);
     return hsh(h, ui_hot(big_id) ? big_id : 0xFFu);
 }
 

@@ -197,7 +197,7 @@ typedef struct {
 
 typedef struct {
     vs_patch_t patch;                           /* the sound: the main loop writes values, the ISR reads */
-    int32_t ev[VS_NPARAM];                      /* .. as played: with the CTRL routes' offsets (the ISR's, every block) */
+    int32_t ev[VS_NALL];                        /* .. as played: with the CTRL routes' offsets (the ISR's, every block) */
     volatile uint8_t cc[128], pressure;         /* MIDI controllers, channel pressure (main loop): the CTRL routes' sources */
     volatile int32_t bend14;                    /* pitch bend, -8192..+8191 (main loop) */
     volatile uint32_t nv;                       /* voices that take new notes, 1..VS_NV (GLOBAL's VOICES; main loop) */
@@ -225,6 +225,8 @@ typedef struct {
                                                    the main loop takes differences) */
     volatile uint32_t shed;                     /* voices the overload guard dropped (vs_voice.c voice_shed) */
     vs_lfo_t lfo[2];                            /* LFO 1, LFO 2 (global, free running) */
+    int32_t lfo_gain[2];                        /* FADE: each LFO's depth gain, Q30 (full: VS_FADE_FULL_Q30) .. */
+    uint8_t lfo_fading[2];                      /* .. rising since a key down (M-vance's JP LFO1 FADE, vs_voice.c) */
     volatile uint32_t bpm_q8;                   /* the tempo, beats a minute Q8 (main loop; 120 until a MIDI clock sets it) */
     volatile uint8_t act;                       /* voices sounding (the ISR writes; the screen reads) */
     volatile uint32_t pw_live, pw_seq;          /* P/W as a voice last played it while an LFO or the mod env moved it (Q32),

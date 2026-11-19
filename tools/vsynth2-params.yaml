@@ -112,11 +112,19 @@ params:
   96: {key: SUB_SHAPE,     label: "SHAPE",   sec: SUB,     kind: enum,    cc: 22, choices: [SINE, TRI, SAW, SQUARE]}
   97: {key: SUB_OCT,       label: "OCTAVE",  sec: SUB,     kind: enum,    cc: 23, choices: [0, -1]}
   98: {key: DLY_TONE,      label: "TONE",    sec: DELAY,   kind: signed,  cc: 81}
+# M-Vsynth2's own parameters, past Synth1's 99 (ids 99..): not in the stored record or a .sy1 (a bank keeps them
+# after the HOME knobs, the transfer after those; vs_prog.h, vs_xfer.c). Full ranges here: Synth2 has none.
+#   LFO1/2 FADE: the depth fades in from 0 at each key down (M-vance's JP LFO1 FADE: the envelope attack law,
+#   MV_ENV_COEF); 0 = off (the depth is there at once, as in Synth1)
+own:
+  99:  {key: LFO1_FADE,     label: "FADE",    sec: LFO1,    kind: num,     lo: 0, hi: 127, def: 0, init: 0}
+  100: {key: LFO2_FADE,     label: "FADE",    sec: LFO2,    kind: num,     lo: 0, hi: 127, def: 0, init: 0}
+
 pages:
   - {btn: LFO,  title: "LFO 1",      knobs: [42, 43, 44, 41]}
-  - {btn: LFO,  title: "LFO 1",      knobs: [57, 67, 68, ~]}
+  - {btn: LFO,  title: "LFO 1",      knobs: [57, 67, 68, 99]}
   - {btn: LFO,  title: "LFO 2",      knobs: [47, 48, 49, 46]}
-  - {btn: LFO,  title: "LFO 2",      knobs: [58, 69, 70, ~]}
+  - {btn: LFO,  title: "LFO 2",      knobs: [58, 69, 70, 100]}
   - {btn: EDIT, title: "OSC 1",      knobs: [0, 76, 45, 91]}
   - {btn: EDIT, title: "SUB OSC",    knobs: [95, 96, 97, ~]}
   - {btn: EDIT, title: "OSC 2",      knobs: [1, 2, 3, 4]}

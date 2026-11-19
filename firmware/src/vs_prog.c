@@ -3,7 +3,7 @@
 #include "vs_prog.h"
 #include "vs_factory.h"
 
-/* r and home are read and written as one block: nothing may sit between them (all bytes: no padding anywhere) */
+/* r, home and own are read and written as one block: nothing may sit between them (all bytes: no padding anywhere) */
 typedef char vs_prog_home_follows[sizeof(vs_prog_t) == 2u + VS_PROG_STORED ? 1 : -1];
 typedef char vs_prog_fits_slot[VS_PROG_STORED <= 16372u ? 1 : -1];
 
@@ -12,6 +12,12 @@ static void home_default(vs_prog_t *g)
     uint32_t i, k;
     for (i = 0; i < VS_NPROG; i++)
         for (k = 0; k < VS_HOME_N; k++) g->home[i][k] = VS_HOME_DEF;
+}
+static void own_default(vs_prog_t *g)
+{
+    uint32_t i, k;
+    for (i = 0; i < VS_NPROG; i++)
+        for (k = 0; k < VS_NOWN; k++) g->own[i][k] = 0xFFu;
 }
 
 void vs_prog_load(vs_prog_t *g, uint32_t bank)
@@ -23,9 +29,12 @@ void vs_prog_load(vs_prog_t *g, uint32_t bank)
         for (i = 0; i < VS_NPROG; i++)
             for (k = 0; k < VS_REC; k++) g->r[i].b[k] = VS_FACTORY[i][k];
         home_default(g);
+        own_default(g);
         return;
     }
     if (!slot_load(g->bank - 1u, g->r, VS_PROG_STORED)) return;   /* (the length must match: an older bank fails here) */
+    own_default(g);
+    if (!slot_load(g->bank - 1u, g->r, VS_PROG_STORED_V2)) return;   /* a bank from before own: own at INIT */
     home_default(g);
     if (!slot_load(g->bank - 1u, g->r, VS_PROG_STORED_V1)) return;   /* a bank from before the knobs: all default */
     for (i = 0; i < VS_NPROG; i++) {            /* never saved, or not ours: empty (the load left rubbish) */
@@ -38,6 +47,7 @@ int vs_prog_get(const vs_prog_t *g, uint32_t slot, vs_patch_t *p)
 {
     if (slot >= VS_NPROG || vs_patch_unpack(&g->r[slot], p)) return 1;
     vs_home_set(p, g->home[slot]);
+    vs_own_set(p, g->own[slot]);
     return 0;
 }
 
@@ -46,17 +56,19 @@ int vs_prog_write(vs_prog_t *g, uint32_t slot, const vs_patch_t *p)
     if (!g->bank || slot >= VS_NPROG) return -1;
     vs_patch_pack(p, &g->r[slot]);
     vs_home_get(p, g->home[slot]);
+    vs_own_get(p, g->own[slot]);
     g->dirty = 1;
     return 0;
 }
 
-int vs_prog_write_rec(vs_prog_t *g, uint32_t slot, const vs_rec_t *r, const uint8_t *home)
+int vs_prog_write_rec(vs_prog_t *g, uint32_t slot, const vs_rec_t *r, const uint8_t *home, const uint8_t *own)
 {
     vs_patch_t p;
     if (!g->bank || slot >= VS_NPROG) return -1;
     if (vs_rec_empty(r)) return vs_prog_clear(g, slot);
     if (vs_patch_unpack(r, &p)) return -2;      /* (sanitized on the way: what lands is in range) */
     vs_home_set(&p, home);
+    vs_own_set(&p, own);
     return vs_prog_write(g, slot, &p);
 }
 
@@ -67,6 +79,7 @@ int vs_prog_clear(vs_prog_t *g, uint32_t slot)
     for (k = 0; k < VS_REC; k++) g->r[slot].b[k] = 0;
     g->r[slot].b[VS_NAME] = VS_REC_EMPTY;
     for (k = 0; k < VS_HOME_N; k++) g->home[slot][k] = VS_HOME_DEF;
+    for (k = 0; k < VS_NOWN; k++) g->own[slot][k] = 0xFFu;
     g->dirty = 1;
     return 0;
 }
@@ -78,6 +91,7 @@ int vs_prog_swap(vs_prog_t *g, uint32_t a, uint32_t b)
     if (!g->bank || a >= VS_NPROG || b >= VS_NPROG) return -1;
     t = g->r[a]; g->r[a] = g->r[b]; g->r[b] = t;
     for (k = 0; k < VS_HOME_N; k++) { const uint8_t h = g->home[a][k]; g->home[a][k] = g->home[b][k]; g->home[b][k] = h; }
+    for (k = 0; k < VS_NOWN; k++) { const uint8_t o = g->own[a][k]; g->own[a][k] = g->own[b][k]; g->own[b][k] = o; }
     g->dirty = 1;
     return 0;
 }

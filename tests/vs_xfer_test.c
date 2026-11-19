@@ -1,12 +1,12 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The transfer (firmware/src/vs_xfer.h) and the banks (vs_prog.h) on this computer: a write acknowledged and read
  * back, a bad sum refused, FACTORY refused, a whole bank round trip, the 7-bit packing, an audition, a busy bank, the
- * link (LINK, EDIT reports, no echo of a PLAY, the lapse). */
+ * link (LINK, EDIT reports, no echo of a PLAY, the lapse), HOME's knobs, LFO FADE (the own parameters). */
 #include <stdio.h>
 #include <string.h>
 #include "../firmware/src/vs_patch.c"
 #define VS_NV 8u
-static uint8_t flash[8][16384];
+static uint8_t flash[8][16384];                 /* (a platform slot holds 16,372) */
 static int flash_ok[8];
 static uint32_t flash_n[8];                     /* the length saved: a load must ask for it, as platform.c's */
 static int slot_load(uint32_t i, void *p, uint32_t n) { if (i >= 8u || !flash_ok[i] || flash_n[i] != n) return -1; memcpy(p, flash[i], n); return 0; }
@@ -81,7 +81,7 @@ int main(void)
     vs_xfer_rx(&x, &g, body, msg(body, VS_XF_READ, d, 3), 1);
     for (k = 0; k < 128u; k++) {
         n = next(&x, &g, out);
-        if (n != 9u + VS_XF_REC7 + VS_HOME_N || out[4] != VS_XF_DATA || out[6] != k) { printf("k %u n %u cmd %x\n", k, n, out[4]); EXPECT(0, "a DATA for every slot, in order"); break; }
+        if (n != 9u + VS_XF_REC7 + VS_XF_EXTRA || out[4] != VS_XF_DATA || out[6] != k) { printf("k %u n %u cmd %x\n", k, n, out[4]); EXPECT(0, "a DATA for every slot, in order"); break; }
         if (out[7 + VS_XF_REC7] != VS_HOME_DEF || out[10 + VS_XF_REC7] != VS_HOME_DEF) { EXPECT(0, "a DATA's knobs: default when none were sent"); break; }
         vs_xfer_unpack7(out + 7, VS_XF_REC7, back.b);
         if (k == 5u) EXPECT(!memcmp(back.b, r.b, VS_REC), "slot 6 of U2 reads back as written");
@@ -111,7 +111,7 @@ int main(void)
         EXPECT(next(&x, &g, out) == 0, "LINK: no ACK (the EDIT is the answer)");
         EXPECT(vs_xfer_link(&x, &now, 1, ms, out, sizeof out) == 0, "a sound still landing: the dump waits");
         n = vs_xfer_link(&x, &now, 0, ms, out, sizeof out);
-        EXPECT(n == 7u + VS_XF_REC7 + VS_HOME_N && out[4] == VS_XF_EDIT, "LINK answered with EDIT (what plays, its knobs after)");
+        EXPECT(n == 7u + VS_XF_REC7 + VS_XF_EXTRA && out[4] == VS_XF_EDIT, "LINK answered with EDIT (what plays, its knobs and own after)");
         vs_xfer_unpack7(out + 5, VS_XF_REC7, got.b);
         EXPECT(vs_patch_unpack(&got, &q) == 0 && !memcmp(q.name, "LINKED", 6), "the EDIT holds the sound playing");
         EXPECT(vs_xfer_link(&x, &now, 0, ms += 100, out, sizeof out) == 0, "unchanged: no report");
@@ -166,7 +166,7 @@ int main(void)
         vs_prog_swap(&h, 7, 9);
         EXPECT(vs_prog_get(&h, 9, &q) == 0 && q.home[0] == VS_P_LFO1_SPEED && h.home[7][0] == VS_HOME_DEF, "a swap moves them");
         vs_prog_swap(&h, 7, 9);
-        EXPECT(vs_prog_flush(&h) == 0 && flash_n[3] == VS_PROG_STORED, "a bank is saved with its knob table (15,872 B)");
+        EXPECT(vs_prog_flush(&h) == 0 && flash_n[3] == VS_PROG_STORED && VS_PROG_STORED == 16128u, "a bank is saved with its knob and own tables (16,128 B)");
         vs_prog_load(&h, 4);
         EXPECT(vs_prog_get(&h, 7, &q) == 0 && q.home[0] == VS_P_LFO1_SPEED && q.home[3] == VS_P_OSC_MIX, "and loads with it");
 
@@ -196,7 +196,7 @@ int main(void)
         EXPECT(out[8] == VS_XF_BADMSG, "WRITE of another length: refused");
         d[0] = 4; d[1] = 20; d[2] = 1;
         vs_xfer_rx(&x, &h, body, msg(body, VS_XF_READ, d, 3), 1); n = next(&x, &h, out);
-        EXPECT(n == 9u + VS_XF_REC7 + VS_HOME_N && out[7 + VS_XF_REC7] == VS_P_LFO1_SPEED && out[8 + VS_XF_REC7] == VS_HOME_DEF &&
+        EXPECT(n == 9u + VS_XF_REC7 + VS_XF_EXTRA && out[7 + VS_XF_REC7] == VS_P_LFO1_SPEED && out[8 + VS_XF_REC7] == VS_HOME_DEF &&
                out[10 + VS_XF_REC7] == VS_P_OSC_MIX, "DATA: the knobs after the record");
         vs_xfer_pack7(r.b, VS_REC, d); memcpy(d + VS_XF_REC7, HK, VS_HOME_N);
         vs_xfer_rx(&x, &h, body, msg(body, VS_XF_PLAY, d, VS_XF_REC7 + VS_HOME_N), 1); n = next(&x, &h, out);
@@ -205,6 +205,70 @@ int main(void)
         EXPECT(out[8] == VS_XF_OK && x.play.home[0] == VS_P_FLT_FREQ, "PLAY without: the defaults");
         vs_prog_clear(&h, 20);
         EXPECT(h.home[20][0] == VS_HOME_DEF, "CLEAR: the knobs back to default");
+    }
+
+    {   /* LFO FADE (the own parameters): with the patch, through the bank, the transfer, and banks from before them */
+        static vs_prog_t h;
+        static const uint8_t HK[VS_HOME_N] = {VS_HOME_DEF, VS_HOME_DEF, VS_HOME_DEF, VS_HOME_DEF};
+        uint8_t ow[VS_NOWN];
+        memset(flash_ok, 0, sizeof flash_ok);
+        vs_prog_load(&h, 2);
+        vs_patch_init(&p);
+        EXPECT(p.v[VS_P_LFO1_FADE] == 0 && p.v[VS_P_LFO2_FADE] == 0, "INIT: no fade");
+        memcpy(p.name, "FADES           ", 16);
+        vs_param_set(&p, VS_P_LFO1_FADE, 90); vs_param_set(&p, VS_P_LFO2_FADE, 127);
+        EXPECT(p.v[VS_P_LFO2_FADE] == 127, "the whole range is settable");
+        vs_param_set(&p, VS_P_LFO1_FADE, 200); EXPECT(p.v[VS_P_LFO1_FADE] == 127, "and clamped"); vs_param_set(&p, VS_P_LFO1_FADE, 90);
+        vs_patch_pack(&p, &r); vs_patch_unpack(&r, &q);
+        EXPECT(q.v[VS_P_LFO1_FADE] == 0, "not in the record (a .sy1 slot): unpacked at INIT");
+        vs_prog_write(&h, 3, &p);
+        EXPECT(h.own[3][0] == 90 && h.own[3][1] == 127 && h.own[4][0] == 0xFFu, "stored a byte each after the knobs; untouched: FF");
+        EXPECT(vs_prog_get(&h, 3, &q) == 0 && q.v[VS_P_LFO1_FADE] == 90 && q.v[VS_P_LFO2_FADE] == 127, "read back with the patch");
+        vs_prog_swap(&h, 3, 5);
+        EXPECT(h.own[5][0] == 90 && h.own[3][0] == 0xFFu, "a swap moves them");
+        vs_prog_swap(&h, 3, 5);
+        EXPECT(vs_prog_flush(&h) == 0, "saved");
+        vs_prog_load(&h, 2);
+        EXPECT(vs_prog_get(&h, 3, &q) == 0 && q.v[VS_P_LFO1_FADE] == 90, "and loaded");
+        slot_save(6, h.r, VS_PROG_STORED_V2);    /* a bank saved before own: records and knobs */
+        vs_prog_load(&h, 7);
+        EXPECT(vs_prog_get(&h, 3, &q) == 0 && !memcmp(q.name, "FADES", 5) && q.v[VS_P_LFO1_FADE] == 0 && q.v[VS_P_LFO2_FADE] == 0,
+               "a bank from before FADE: its patches load, no fade");
+        vs_prog_load(&h, 2);
+
+        vs_patch_pack(&p, &r);
+        d[0] = 2; d[1] = 30; vs_xfer_pack7(r.b, VS_REC, d + 2);
+        memcpy(d + 2 + VS_XF_REC7, HK, VS_HOME_N); d[2 + VS_XF_REC7 + VS_HOME_N] = 40; d[3 + VS_XF_REC7 + VS_HOME_N] = 7;
+        vs_xfer_init(&x);
+        vs_xfer_rx(&x, &h, body, msg(body, VS_XF_WRITE, d, 2 + VS_XF_REC7 + VS_XF_EXTRA), 1); n = next(&x, &h, out);
+        EXPECT(out[8] == VS_XF_OK && vs_prog_get(&h, 30, &q) == 0 && q.v[VS_P_LFO1_FADE] == 40 && q.v[VS_P_LFO2_FADE] == 7, "WRITE with own: kept");
+        d[1] = 31;
+        vs_xfer_rx(&x, &h, body, msg(body, VS_XF_WRITE, d, 2 + VS_XF_REC7 + VS_HOME_N), 1); n = next(&x, &h, out);
+        EXPECT(out[8] == VS_XF_OK && vs_prog_get(&h, 31, &q) == 0 && q.v[VS_P_LFO1_FADE] == 0, "WRITE with the knobs only: no fade");
+        d[0] = 2; d[1] = 30; d[2] = 1;
+        vs_xfer_rx(&x, &h, body, msg(body, VS_XF_READ, d, 3), 1); n = next(&x, &h, out);
+        EXPECT(n == 9u + VS_XF_REC7 + VS_XF_EXTRA && out[7 + VS_XF_REC7 + VS_HOME_N] == 40 && out[8 + VS_XF_REC7 + VS_HOME_N] == 7,
+               "DATA: own after the knobs");
+        d[1] = 40;                               /* an empty slot: own FF in the bank, INIT on the wire */
+        vs_xfer_rx(&x, &h, body, msg(body, VS_XF_READ, d, 3), 1); n = next(&x, &h, out);
+        EXPECT(out[7 + VS_XF_REC7 + VS_HOME_N] == 0 && out[8 + VS_XF_REC7 + VS_HOME_N] == 0, "DATA of an unset slot: INIT (7-bit)");
+        vs_xfer_pack7(r.b, VS_REC, d); memcpy(d + VS_XF_REC7, HK, VS_HOME_N); d[VS_XF_REC7 + VS_HOME_N] = 64; d[VS_XF_REC7 + VS_HOME_N + 1] = 1;
+        vs_xfer_rx(&x, &h, body, msg(body, VS_XF_PLAY, d, VS_XF_REC7 + VS_XF_EXTRA), 1); n = next(&x, &h, out);
+        EXPECT(out[8] == VS_XF_OK && x.play.v[VS_P_LFO1_FADE] == 64 && x.play.v[VS_P_LFO2_FADE] == 1, "PLAY with own");
+        {   /* the link reports a FADE change alone */
+            vs_patch_t now = x.play;
+            uint32_t ms = 1000;
+            vs_xfer_rx(&x, &h, body, msg(body, VS_XF_LINK, d, 0), 1);
+            (void)vs_xfer_link(&x, &now, 0, ms, out, sizeof out);
+            EXPECT(vs_xfer_link(&x, &now, 0, ms += 100, out, sizeof out) == 0, "linked, unchanged: nothing");
+            now.v[VS_P_LFO2_FADE] = 99;
+            n = vs_xfer_link(&x, &now, 0, ms += 100, out, sizeof out);
+            EXPECT(n == 7u + VS_XF_REC7 + VS_XF_EXTRA && out[5 + VS_XF_REC7 + VS_HOME_N + 1] == 99, "a FADE change: reported");
+        }
+        vs_own_get(&p, ow);
+        EXPECT(ow[0] == 90 && ow[1] == 127, "own bytes: value - min");
+        vs_prog_clear(&h, 30);
+        EXPECT(h.own[30][0] == 0xFFu, "CLEAR: own back to INIT");
     }
 
     printf(fails ? "vs_xfer_test: %u FAILED\n" : "vs_xfer_test: ok\n", fails);

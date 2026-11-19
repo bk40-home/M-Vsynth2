@@ -66,7 +66,7 @@ static int sp_param(uint32_t id)
 {
     char v[24];
     const char *lab;
-    if (id >= VS_NPARAM) return 0;
+    if (id >= VS_NALL) return 0;
     lab = vs_param_label(id, pval(VS_P_FX_TYPE));
     if (lab[0] == '-' && !lab[1]) return 0;
     sp_cat(lab);
@@ -324,7 +324,7 @@ static void speak_dump(const char *path)
         sp_front(0); OUT("SCREEN");
         sp_front(1); OUT("WHERE");
     }
-    for (id = 0; id < VS_NPARAM; id++) {        /* every value of every parameter, with each thing that changes its words */
+    for (id = 0; id < VS_NALL; id++) {          /* every value of every parameter, with each thing that changes its words */
         const int lfo = id == VS_P_LFO1_SPEED || id == VS_P_LFO2_SPEED, fx = id >= VS_P_FX_CTRL1 && id <= VS_P_FX_LEVEL;
         const vs_param_info_t *p = &VS_PARAMS[id];
         for (t = 0; t < (lfo ? 2u : fx ? 10u : 1u); t++) {

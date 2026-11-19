@@ -20,7 +20,7 @@ void vs_patch_init(vs_patch_t *p)
 {
     static const char NAME[VS_NAME + 1u] = "INIT            ";
     uint32_t i;
-    for (i = 0; i < VS_NPARAM; i++) p->v[i] = VS_PARAMS[i].init;
+    for (i = 0; i < VS_NALL; i++) p->v[i] = VS_PARAMS[i].init;
     for (i = 0; i < VS_NAME; i++) p->name[i] = NAME[i];
     p->color = 2u;                              /* blue, as Synth2's INIT */
     vs_home_set(p, 0);
@@ -34,7 +34,7 @@ uint8_t vs_home_default(uint32_t k)
 }
 int vs_home_ok(uint32_t id)
 {
-    return id < VS_NPARAM && VS_PARAMS[id].kind != VS_K_SRC && VS_PARAMS[id].kind != VS_K_DST;
+    return id < VS_NALL && VS_PARAMS[id].kind != VS_K_SRC && VS_PARAMS[id].kind != VS_K_DST;
 }
 void vs_home_set(vs_patch_t *p, const uint8_t *b)
 {
@@ -48,9 +48,24 @@ void vs_home_get(const vs_patch_t *p, uint8_t *b)
         b[k] = !vs_home_ok(p->home[k]) || p->home[k] == vs_home_default(k) ? (uint8_t)VS_HOME_DEF : p->home[k];
 }
 
+/* ---- M-Vsynth2's own parameters (vs_patch.h) */
+void vs_own_set(vs_patch_t *p, const uint8_t *b)
+{
+    uint32_t k;
+    for (k = 0; k < VS_NOWN; k++) {
+        const vs_param_info_t *pi = &VS_PARAMS[VS_NPARAM + k];
+        p->v[VS_NPARAM + k] = b && b[k] <= (uint32_t)(pi->max - pi->min) ? (int32_t)b[k] + pi->min : pi->init;
+    }
+}
+void vs_own_get(const vs_patch_t *p, uint8_t *b)
+{
+    uint32_t k;
+    for (k = 0; k < VS_NOWN; k++) b[k] = (uint8_t)(clamp_id(VS_NPARAM + k, p->v[VS_NPARAM + k]) - VS_PARAMS[VS_NPARAM + k].min);
+}
+
 void vs_param_set(vs_patch_t *p, uint32_t id, int32_t v)
 {
-    if (id < VS_NPARAM) p->v[id] = clamp_id(id, v);
+    if (id < VS_NALL) p->v[id] = clamp_id(id, v);
 }
 
 int32_t vs_param_centre(uint32_t id)
@@ -61,7 +76,7 @@ int32_t vs_param_centre(uint32_t id)
 uint32_t vs_patch_sanitize(vs_patch_t *p)
 {
     uint32_t i, n = 0;
-    for (i = 0; i < VS_NPARAM; i++) {
+    for (i = 0; i < VS_NALL; i++) {
         int32_t c = clamp_id(i, p->v[i]);
         if (c != p->v[i]) { p->v[i] = c; n++; }
     }
@@ -105,6 +120,7 @@ int vs_patch_unpack(const vs_rec_t *r, vs_patch_t *p)
     }
     p->color = r->b[REC_COLOR];
     vs_home_set(p, 0);                          /* (not in the record: the caller sets them when it has them) */
+    vs_own_set(p, 0);                           /* (the same) */
     vs_patch_sanitize(p);
     return 0;
 }
@@ -172,7 +188,7 @@ uint32_t vs_param_text(uint32_t id, int32_t v, int tempo_sync, int32_t fx_type, 
     uint32_t u;
     if (!cap) return 0;
     o.p = out; o.end = out + cap - 1u;
-    if (id >= VS_NPARAM) { *o.p = 0; return 0; }
+    if (id >= VS_NALL) { *o.p = 0; return 0; }
     p = &VS_PARAMS[id];
     v = clamp_id(id, v);
     u = (uint32_t)(v - p->min);
@@ -225,7 +241,7 @@ uint32_t vs_param_text(uint32_t id, int32_t v, int tempo_sync, int32_t fx_type, 
 
 const char *vs_param_label(uint32_t id, int32_t fx_type)
 {
-    if (id >= VS_NPARAM) return "";
+    if (id >= VS_NALL) return "";
     if (id >= VS_P_FX_CTRL1 && id <= VS_P_FX_LEVEL && fx_type >= 0 && fx_type < 10)
         return VS_FX_KNOB[(uint32_t)fx_type * 3u + (id - VS_P_FX_CTRL1)];
     return VS_PARAMS[id].label;

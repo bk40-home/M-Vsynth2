@@ -6,7 +6,9 @@
 #pragma once
 #include <stdint.h>
 
-#define VS_NPARAM 99u
+#define VS_NPARAM 99u                           /* Synth1's: the record, a .sy1, the routes, the CC map */
+#define VS_NOWN 2u                              /* M-Vsynth2's own, ids VS_NPARAM.. (the bank keeps them apart) */
+#define VS_NALL (VS_NPARAM + VS_NOWN)           /* every parameter: the patch's values, the table, the pages */
 #define VS_NREC 95u                             /* parameters stored a byte each (vs_patch.h) */
 
 enum {
@@ -109,6 +111,8 @@ enum {
     VS_P_SUB_SHAPE = 96,
     VS_P_SUB_OCT = 97,
     VS_P_DLY_TONE = 98,
+    VS_P_LFO1_FADE = 99,
+    VS_P_LFO2_FADE = 100,
 };
 
 enum { VS_SEC_OSC1, VS_SEC_OSC2, VS_SEC_OSCC, VS_SEC_MENV, VS_SEC_FILT, VS_SEC_FENV, VS_SEC_AENV, VS_SEC_AMP, VS_SEC_ARP, VS_SEC_DELAY, VS_SEC_VOICE, VS_SEC_CTRL, VS_SEC_LFO1, VS_SEC_LFO2, VS_SEC_CHORUS, VS_SEC_EQ, VS_SEC_UNISON, VS_SEC_FX, VS_SEC_SUB };
@@ -125,7 +129,7 @@ typedef struct {
     char label[8];                              /* panel label */
 } vs_param_info_t;
 
-static const vs_param_info_t VS_PARAMS[VS_NPARAM] = {
+static const vs_param_info_t VS_PARAMS[VS_NALL] = {
     {0, 3, 2, 1, VS_SEC_OSC1, VS_K_ENUM, 17, 0, "SHAPE"},                     /* 0 osc1 shape */
     {1, 4, 1, 2, VS_SEC_OSC2, VS_K_ENUM, 24, 4, "SHAPE"},                     /* 1 osc2 shape */
     {0, 127, 51, 64, VS_SEC_OSC2, VS_K_TABLE, 25, 255, "PITCH"},              /* 2 osc2 pitch */
@@ -225,6 +229,8 @@ static const vs_param_info_t VS_PARAMS[VS_NPARAM] = {
     {0, 3, 1, 3, VS_SEC_SUB, VS_K_ENUM, 22, 73, "SHAPE"},                     /* 96 osc1 sub shape */
     {0, 1, 1, 1, VS_SEC_SUB, VS_K_ENUM, 23, 77, "OCTAVE"},                    /* 97 osc1 sub octave */
     {0, 127, 64, 64, VS_SEC_DELAY, VS_K_SIGNED, 81, 255, "TONE"},             /* 98 delay tone */
+    {0, 127, 0, 0, VS_SEC_LFO1, VS_K_NUM, 255, 255, "FADE"},                  /* 99 lfo1_fade */
+    {0, 127, 0, 0, VS_SEC_LFO2, VS_K_NUM, 255, 255, "FADE"},                  /* 100 lfo2_fade */
 };
 
 /* the panel's CC -> parameter (0xFF: not mapped) */
@@ -273,9 +279,9 @@ typedef struct {
 #define VS_NPAGE 28u
 static const vs_page_t VS_PAGES[VS_NPAGE] = {
     {VS_BTN_LFO, 1, 2, {42, 43, 44, 41}, "LFO 1"},
-    {VS_BTN_LFO, 2, 2, {57, 67, 68, 255}, "LFO 1"},
+    {VS_BTN_LFO, 2, 2, {57, 67, 68, 99}, "LFO 1"},
     {VS_BTN_LFO, 1, 2, {47, 48, 49, 46}, "LFO 2"},
-    {VS_BTN_LFO, 2, 2, {58, 69, 70, 255}, "LFO 2"},
+    {VS_BTN_LFO, 2, 2, {58, 69, 70, 100}, "LFO 2"},
     {VS_BTN_EDIT, 1, 1, {0, 76, 45, 91}, "OSC 1"},
     {VS_BTN_EDIT, 1, 1, {95, 96, 97, 255}, "SUB OSC"},
     {VS_BTN_EDIT, 1, 1, {1, 2, 3, 4}, "OSC 2"},

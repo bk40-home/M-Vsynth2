@@ -19,8 +19,9 @@ def fail(m):
 
 
 params = re.findall(r'\{(-?\d+), (-?\d+), (-?\d+), (-?\d+), VS_SEC_(\w+), VS_K_(\w+), (\d+), (\d+), "([^"]*)"\},\s*/\* (\d+) ([^*]*)\*/', H)
-if len(params) != 99:
-    fail(f"{len(params)} parameters read from vs_params.h, not 99")
+NALL = 99 + int(re.search(r"#define VS_NOWN (\d+)u", H).group(1))   # Synth1's 99, then M-Vsynth2's own (LFO FADE)
+if len(params) != NALL:
+    fail(f"{len(params)} parameters read from vs_params.h, not {NALL}")
 P = {int(p[9]): {"label": p[8], "sec": p[4], "lo": int(p[0]), "hi": int(p[1]), "what": p[10].strip()} for p in params}
 pages = [(b, int(n), int(of), [int(x) for x in ids.split(",")], t) for b, n, of, ids, t in
          re.findall(r'\{VS_BTN_(\w+), (\d+), (\d+), \{([\d, ]+)\}, "([^"]*)"\}', H)]
@@ -29,7 +30,7 @@ for b, n, of, ids, t in pages:
     for i in ids:
         if i != 255:
             seen[i] = seen.get(i, 0) + 1
-missing = [i for i in range(99) if seen.get(i, 0) == 0 and i != 59]
+missing = [i for i in range(NALL) if seen.get(i, 0) == 0 and i != 59]
 twice = [i for i, c in seen.items() if c > 1]
 if missing or twice:
     fail(f"on no page: {missing}; on two: {twice}")
