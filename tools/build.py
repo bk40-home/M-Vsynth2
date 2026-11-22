@@ -66,6 +66,10 @@ BOARD_PREFIX = {"fm1": "FM-1_968100", "smk37": "SMK-37 Pro_95"}   # identity: pr
 BLE = True
 KIT_BLE = SRC / "third_party" / "fm1-kit" / "firmware" / "fk_ble"
 BLE_INC = [f"-I{KIT_BLE}", f"-I{KIT_BLE / 'chip'}", f"-I{KIT_BLE / 'stack'}"]
+# velocity and pressure from the keys (Kris 22 Nov): fm1-kit's fk_touch. Its glue is in platform.c's unity build; its
+# float half (fm1-base's touch.c, sense.c) is built apart with the FPU's flags, as vs_dsp.c. FM-1 only (the SMK-37
+# has its own velocity: FK_TOUCH 0), and not with DINGHY_DEFS=-DFK_TOUCH=0
+KIT_TOUCH = SRC / "third_party" / "fm1-kit" / "firmware" / "fk_touch"
 BOARD_DEFS = {"fm1": [], "smk37": ["-DBOARD_SMK37=1"]}
 MODELS = {"pro": "SMK-37 Pro", "elite": "SMK-37 Elite", "mke": "MKE-P37"}   # smk37: one keyboard, three names
 DATA_FAMILY = "MVSYN2"              # the SMK store's owner tag (store.h): 1..7 of A-Z 0-9. Your fork: your own
@@ -204,6 +208,9 @@ def build_app():
             ("cc", *flags, "-c", FW / "src" / "mvsynth2.c", "-o", OUT / "mvsynth2.o"),
             # the DSP apart at -O2 (firmware/src/vs_dsp.c says why); the platform and the app stay at -Os
             ("cc", *[f for f in flags if f != "-Os"], "-O2", *FPU_FLAGS, "-c", FW / "src" / "vs_dsp.c", "-o", OUT / "vs_dsp.o")]
+    touch = BOARD == "fm1" and "-DFK_TOUCH=0" not in flags
+    if touch:
+        cmds.append(("cc", *flags, *FPU_FLAGS, "-c", KIT_TOUCH / "fk_touch_fpu.c", "-o", OUT / "fk_touch_fpu.o"))
     tc_all(*cmds)
     elf = OUT / "mvsynth2.elf"
     ld = FW / "app.ld"
@@ -214,7 +221,7 @@ def build_app():
         ld = OUT / "app.ld"
         ld.write_text(txt.replace("LENGTH = 0x8DFBC", f"LENGTH = {APP_SLOT:#X}".replace("0X", "0x")))
     tc("pi32v2/bin/ld", "--gc-sections", "-e", "_start", "-T", ld, OUT / "crt0.o", OUT / "fm1_vec.o",
-       OUT / "fm1_isr.o", OUT / "mvsynth2.o", OUT / "vs_dsp.o", "-o", elf)
+       OUT / "fm1_isr.o", OUT / "mvsynth2.o", OUT / "vs_dsp.o", *([OUT / "fk_touch_fpu.o"] if touch else []), "-o", elf)
     for sect in ("text.bin", "data.bin", "ramtext.bin", "dsptext.bin"):
         (OUT / sect).unlink(missing_ok=True)
     *_, syms, dis, rt, dt = tc_all(("common/bin/objcopy", "-O", "binary", "-j", ".text", elf, OUT / "text.bin"),

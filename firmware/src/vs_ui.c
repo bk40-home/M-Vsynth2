@@ -433,7 +433,7 @@ static void ui_cells_param(const uint8_t ids[4])
 
 /* ---- the panel's graphs */
 enum { G_NONE, G_LFO1, G_LFO2, G_OSC1, G_SUB, G_OSC2, G_MIX, G_MENV, G_FENV, G_AENV, G_FILT, G_AMP, G_CHAIN, G_EFFECT,
-       G_EQ, G_DELAY, G_CHORUS, G_VOICE, G_UNISON, G_CTRL, G_ARP, G_HOME, G_SAVE, G_GLOB1, G_GLOB2, G_GLOB3, G_KNOBS };
+       G_EQ, G_DELAY, G_CHORUS, G_VOICE, G_UNISON, G_CTRL, G_ARP, G_HOME, G_SAVE, G_GLOB1, G_GLOB2, G_GLOB3, G_KNOBS, G_GLOBK };
 
 static int32_t P(uint32_t id) { return pval(id); }
 static int32_t clampi(int32_t v, int32_t lo, int32_t hi) { return v < lo ? lo : v > hi ? hi : v; }
@@ -1050,7 +1050,35 @@ static void g_glob2(void)
     }
 }
 
-/* GLOBAL 3/3, DIAG: what the sound costs (the ISR's buffer, its voices and its bus), the cores, the voices the
+/* GLOBAL 3/4, KEYS (Kris 22 Nov): what the keys play, live, to set VEL CURVE and PRESS SENS by: the last velocity,
+ * the pressure going out, and each key's pressure (F3..C5; C#5..G5 have velocity, no pressure: their stubs) */
+static void g_globk(void)
+{
+    char s[24], *p;
+    const int on = fk_touch_on();
+    const uint32_t held = fk_touch_keys();
+    uint32_t k;
+    txt(PX0 + 2, PY0 - 2, &FONT_LAB, "LAST VELOCITY", T.dim);
+    p = on && fk_touch_last_vel() ? put_u(s, fk_touch_last_vel()) : put_s(s, "-"); *p = 0;
+    txt(PX0 + 2, PY0 + 12, &FONT_BIG, s, on ? T.text : T.dim);
+    txt(PX0 + 120, PY0 - 2, &FONT_LAB, "PRESSURE OUT", T.dim);
+    p = on ? put_u(s, fk_touch_channel_pressure()) : put_s(s, "-"); *p = 0;
+    txt(PX0 + 120, PY0 + 12, &FONT_BIG, s, on ? T.accent : T.dim);
+    for (k = 0; k < FK_TOUCH_NKEYS; k++) {     /* 27 keys, 8 px apart: a bar each */
+        const int32_t x = PX0 + 2 + (int32_t)k * 8, y0 = PY0 + 50, h = PY1 - 4 - y0;
+        const int sensed = (FK_TOUCH_ANALOG >> k & 1u) != 0u, down = (held >> k & 1u) != 0u;
+        if (!sensed) { fill(x, PY1 - 8, 6, 4, down ? T.theme : T.line); continue; }
+        fill(x, y0, 6, h, T.line);
+        if (on && down) {
+            const int32_t b = (int32_t)fk_touch_pressure(k) * h / 127;
+            fill(x, y0, 6, h, T.fill);
+            fill(x, y0 + h - b, 6, b, T.accent);
+        }
+    }
+    txt(PX0 + 2, PY1 - 2, &FONT_LAB, on ? "PRESSURE ON F3 .. C5 ONLY" : "TOUCH OFF: VELOCITY 100", T.dim);
+}
+
+/* GLOBAL 4/4, DIAG: what the sound costs (the ISR's buffer, its voices and its bus), the cores, the voices the
  * overload guard dropped, the tempo's source */
 static uint32_t dg_avg, dg_peak;                /* (ui_draw: the CPU average and the 3 s peak, % of the buffer) */
 static void g_glob3(void)
@@ -1102,6 +1130,7 @@ static void ui_panel_render(uint32_t kind)
     case G_GLOB2: g_glob2(); break;
     case G_GLOB3: g_glob3(); break;
     case G_KNOBS: g_knobs(); break;
+    case G_GLOBK: g_globk(); break;
     default: break;
     }
     if (kind != G_HOME && kind != G_SAVE && kind != G_CHAIN && kind != G_CTRL && kind < G_GLOB1) readout();   /* (the path and the routes say it) */
@@ -1159,14 +1188,14 @@ static uint32_t page_kind(uint32_t p)
 }
 
 static const char *const BTN_NAME[7] = {"LFO", "EDIT", "ENV", "SEL", "FX", "GLO", "ARP"};
-/* GLO's pages after the patch's: HOME KNOBS (the patch's, Kris 18 Nov), then GLOBAL 1/3 MIDI CH, VOICES, TEMPO,
- * CLOCK; 2/3 THEME, COLOUR; 3/3 DIAG */
-enum { GP_KNOBS, GP_MAIN, GP_LOOK, GP_DIAG, GP_N };
+/* GLO's pages after the patch's: HOME KNOBS (the patch's, Kris 18 Nov), then GLOBAL 1/4 MIDI CH, VOICES, TEMPO,
+ * CLOCK; 2/4 THEME, COLOUR, BT MIDI; 3/4 KEYS: TOUCH, VEL CURVE, PRESS SENS, LAST VEL (Kris 22 Nov); 4/4 DIAG */
+enum { GP_KNOBS, GP_MAIN, GP_LOOK, GP_KEYS, GP_DIAG, GP_N };
 static uint32_t gpage;
 
 /* the footer of a patch page: bank and slot, the name, the tempo (or the transfer, or the bank unsaved) */
 /* the footer, every screen: the patch's name only (edited: in WARN); on the right only what needs seeing now, a
- * transfer or a bank not yet written. The meters are on GLOBAL 3/3 (Kris 14 Nov) */
+ * transfer or a bank not yet written. The meters are on GLOBAL 4/4 (Kris 14 Nov) */
 static void ui_foot_prog(void)
 {
     char r[24], *p = r;
@@ -1259,7 +1288,7 @@ static void ui_draw_global(void)
     const int ext = clk_t && fm1_ms - clk_t < 1000u;
     k.mod = 0; k.c = 0; k.n = 0; k.idx = 0;
     ui_head("GLO", T.theme, "GLOBAL", 0, 0);
-    {   /* the pips: GLO's patch pages, then HOME KNOBS and GLOBAL's three */
+    {   /* the pips: GLO's patch pages, then HOME KNOBS and GLOBAL's four */
         uint32_t n = 0, j;
         k_head = 0;
         for (j = 0; j < VS_NPAGE; j++) if (VS_PAGES[j].btn == VS_BTN_GLO) n++;
@@ -1292,6 +1321,23 @@ static void ui_draw_global(void)
         ui_cell(2, &k);
         k.hot = 0; k.w = W_READ; k.v = 0; k.lab = "CLOCK";
         p = put_s(k.val, ext ? "EXT" : "INT"); *p = 0;
+        ui_cell(3, &k);
+    } else if (gpage == GP_KEYS) {              /* KEYS: velocity and pressure from the keys (fm1-kit fk_touch) */
+        const uint32_t on = (uint32_t)fk_touch_on(), held = fk_touch_keys();
+        uint32_t c, key = hsh(hsh(on, held), fk_touch_last_vel() << 8 ^ fk_touch_channel_pressure());
+        for (c = 0; c < FK_TOUCH_NKEYS; c++) if (held >> c & 1u) key = hsh(key, fk_touch_pressure(c) >> 2 | c << 8);
+        ui_panel(G_GLOBK, key, need_full ? 0u : 40u);
+        k.hot = (uint8_t)ui_ghot(0); k.w = W_SWITCH; k.v = set.touch ? 3840 : 0; k.lab = "TOUCH";
+        p = put_s(k.val, set.touch ? "ON" : "OFF"); *p = 0;
+        ui_cell(0, &k);
+        k.hot = (uint8_t)ui_ghot(1); k.w = W_CENTRE; k.c = ang_of(0, -5, 5); k.v = ang_of(set.vcurve, -5, 5); k.lab = "CURVE";
+        p = k.val; if (set.vcurve) *p++ = set.vcurve > 0 ? '+' : '-'; p = put_u(p, (uint32_t)(set.vcurve < 0 ? -set.vcurve : set.vcurve)); *p = 0;
+        ui_cell(1, &k);
+        k.hot = (uint8_t)ui_ghot(2); k.v = ang_of(set.psens, -5, 5); k.lab = "SENS";
+        p = k.val; if (set.psens) *p++ = set.psens > 0 ? '+' : '-'; p = put_u(p, (uint32_t)(set.psens < 0 ? -set.psens : set.psens)); *p = 0;
+        ui_cell(2, &k);
+        k.hot = 0; k.w = W_READ; k.c = 0; k.v = 0; k.lab = "LAST VEL";
+        p = set.touch && fk_touch_last_vel() ? put_u(k.val, fk_touch_last_vel()) : put_s(k.val, "-"); *p = 0;
         ui_cell(3, &k);
     } else if (gpage == GP_DIAG) {              /* DIAG: the meters, read only; redrawn twice a second */
         const uint32_t key = hsh(hsh(hsh(dg_avg, dg_peak << 8 ^ pc_voice << 16 ^ pc_bus << 24), eng.shed ^ pc_cpu1 << 8 ^ pc_wait << 16),

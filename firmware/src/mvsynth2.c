@@ -5,7 +5,8 @@
  *
  * The panel (proposal 7.1, 7.2; the pages: firmware/gen/vs_params.h VS_PAGES, all 99 parameters):
  *   LFO EDIT ENV SEL FX GLO   a section: the first press opens its page (the one last seen), the next steps
- *                             through its pages (GLO ends on GLOBAL: MIDI CH, VOICES, TEMPO)
+ *                             through its pages (GLO ends on GLOBAL: MIDI CH, VOICES, TEMPO; THEME, COLOUR, BT MIDI;
+ *                             KEYS: TOUCH, CURVE, SENS; DIAG)
  *   ARP        a tap: the arp on / off (ARP ON, parameter 59: the patch); held: the ARP page
  *   KNOB1..4   the page's four columns (HOME: FREQ, RES, AMOUNT, GAIN; BANK: the bank; SAVE: bank and slot)
  *   SELECT     the column last turned, a step at a time (BANK: the cursor)
@@ -20,10 +21,11 @@
  * (MIDI CH, VOICES, TEMPO, CLOCK) and 2/2 (THEME, COLOUR); the transfer at the foot while the computer talks. Values
  * read as Synth2 shows them (vs_param_text).
  *
- * MIDI in (USB, the TRS jack or Bluetooth: GLOBAL 2/3 BLUETOOTH): notes (GLOBAL's channel, or any), velocity, the bend, CC 64, CC 120 / 123, program
+ * MIDI in (USB, the TRS jack or Bluetooth: GLOBAL 2/4 BLUETOOTH): notes (GLOBAL's channel, or any), velocity, the bend, CC 64, CC 120 / 123, program
  * change (a slot of the bank shown; an empty one is ignored, as in Synth2), bank select (CC 0: 0 FACTORY, 1..8),
  * channel pressure and every CC for the CTRL routes, the panel's CC map (proposal 8), clock (F8: the tempo while it
- * runs; else GLOBAL's TEMPO). Out: the keys' notes on channel 1. SysEx 7D 4D 56: the transfer (vs_xfer.h); 7D 53 52: the
+ * runs; else GLOBAL's TEMPO). Out: the keys' notes on channel 1 (with GLOBAL KEYS TOUCH ON: their velocity, and
+ * the pressure of F3..C5 as channel pressure, which feeds the CTRL routes' PRESS too: fm1-kit fk_touch). SysEx 7D 4D 56: the transfer (vs_xfer.h); 7D 53 52: the
  * screen reader (vs_speak.c, fm1-reader: the screen as words, silent until a reader says HELLO).
  *
  * Rules of the road (the chip has no FPU and no libgcc): integers only, no float, no 64-bit division.
@@ -92,8 +94,12 @@ static struct {
     uint8_t bank, slot;                         /* what played last */
     int8_t oct;
     uint8_t theme, colour;                      /* GLOBAL 2/2: the screen's theme (vs_ui.c UI_THEMES), COLOUR 0 THEME, 1 PATCH */
-    uint8_t bt;                                 /* GLOBAL 2/3 BLUETOOTH: 1 ON (Kris 19 Nov). Last: a record from before
+    uint8_t bt;                                 /* GLOBAL 2/4 BLUETOOTH: 1 ON (Kris 19 Nov). A record from before
                                                    (one byte shorter) still loads, with ON (app_main) */
+    uint8_t touch;                              /* GLOBAL 3/4 KEYS (Kris 22 Nov): TOUCH 1 ON (velocity and pressure from
+                                                   the keys, fm1-kit fk_touch), VEL CURVE and PRESS SENS -5..+5. Last: a
+                                                   record from before still loads, with TOUCH OFF, 0, 0 */
+    int8_t vcurve, psens;
 } set;
 static uint8_t set_dirty;
 /* a setting changed: saved once settings have rested 2 s (scrolling PRESETS or turning a GLOBAL knob is never cut by
@@ -290,7 +296,7 @@ static void section(uint32_t btn)               /* a section button: open its pa
         }
         open_page(i);
     } else if (scr == SCR_GLOBAL && btn == VS_BTN_GLO) {
-        if (gpage + 1u < GP_N) { gpage++; col = 0; need_full = 1; return; }   /* HOME KNOBS, GLOBAL 1/3, 2/3, 3/3 */
+        if (gpage + 1u < GP_N) { gpage++; col = 0; need_full = 1; return; }   /* HOME KNOBS, GLOBAL 1/4 .. 4/4 */
         open_page(first);
     }
     else open_page(VS_PAGES[last_page[btn]].btn == btn ? last_page[btn] : first);
@@ -353,7 +359,7 @@ static void global_edit(uint32_t k, int32_t e)
     int32_t v;
     const int fast = k < 4u && fm1_ms - t_k[k] < 40u;   /* detents < 40 ms apart: x4 on the long scrolls only */
     if (k < 4u) t_k[k] = fm1_ms;
-    if (gpage == GP_DIAG) return;               /* GLOBAL 3/3: DIAG, read only */
+    if (gpage == GP_DIAG) return;               /* GLOBAL 4/4: DIAG, read only */
     if (fast && (gpage == GP_KNOBS || (gpage == GP_MAIN && k == 2u))) e *= 4;   /* HOME KNOBS' list, TEMPO (not MIDI CH, VOICES, choices) */
     if (gpage == GP_KNOBS) {                    /* HOME KNOBS: the patch's, so it is edited (SAVE keeps it) */
         if (k >= VS_HOME_N || !home_n) return;
@@ -363,7 +369,18 @@ static void global_edit(uint32_t k, int32_t e)
         ui_gtouch();
         return;
     }
-    if (gpage == GP_LOOK) {                     /* GLOBAL 2/3: THEME, COLOUR (vs_ui.c applies them), BLUETOOTH */
+    if (gpage == GP_KEYS) {                     /* GLOBAL 3/4 KEYS: TOUCH, VEL CURVE, PRESS SENS (LAST VEL: read only) */
+        if (k == 0u) { if (set.touch == (e > 0)) return; set.touch = e > 0; fk_touch_enable(set.touch); }   /* (the keys
+                                                   change hands: the held ones end, as any key let go) */
+        else if (k == 1u) { v = set.vcurve + e; set.vcurve = (int8_t)(v < -5 ? -5 : v > 5 ? 5 : v); }
+        else if (k == 2u) { v = set.psens + e; set.psens = (int8_t)(v < -5 ? -5 : v > 5 ? 5 : v); }
+        else return;
+        fk_touch_set(set.vcurve, set.psens);
+        set_changed();
+        ui_gtouch();
+        return;
+    }
+    if (gpage == GP_LOOK) {                     /* GLOBAL 2/4: THEME, COLOUR (vs_ui.c applies them), BLUETOOTH */
         if (k == 0u) { v = set.theme + e; set.theme = (uint8_t)(v < 0 ? 0 : v >= (int32_t)UI_NTHEME ? (int32_t)UI_NTHEME - 1 : v); }
         else if (k == 1u) set.colour = e > 0;
         else if (k == 2u) { if (set.bt == (e > 0)) return; set.bt = e > 0; fk_ble_enable(set.bt); }   /* (the first ON
@@ -389,14 +406,20 @@ static void app_main(void)
     vs_engine_init(&eng);
     vs_xfer_init(&xfer);
     if (settings_load(&set, sizeof set) == 0) {}
-    else if (settings_load(&set, __builtin_offsetof(__typeof__(set), bt)) == 0) set.bt = 1;   /* (before BLUETOOTH: ON) */
+    else if (settings_load(&set, __builtin_offsetof(__typeof__(set), touch)) == 0) set.touch = 0xFFu;   /* (before KEYS) */
+    else if (settings_load(&set, __builtin_offsetof(__typeof__(set), bt)) == 0) { set.bt = 1; set.touch = 0xFFu; }   /* (before BLUETOOTH: ON) */
     else set.bt = 0xFFu;                        /* (none: the defaults below) */
     if (set.bt > 1u || set.ch > 16u || !set.voices || set.voices > VS_NV || set.tempo < 40u ||
         set.tempo > 240u || set.bank > VS_NBANK || set.oct < -2 || set.oct > 2 || set.theme >= UI_NTHEME || set.colour > 1u) {
         set.ch = 0; set.voices = VS_NV; set.tempo = 120; set.bank = 0; set.slot = 0; set.oct = 0; set.theme = 0; set.colour = 0;
         set.bt = 1;
     }
+    if (set.touch > 1u || set.vcurve < -5 || set.vcurve > 5 || set.psens < -5 || set.psens > 5) {
+        set.touch = 0; set.vcurve = 0; set.psens = 0;   /* KEYS: TOUCH OFF, as fm1-base tuned it */
+    }
     fk_ble_enable(set.bt);                      /* ON: the radio calibrates (~0.5 s; the first second silent), advertises */
+    fk_touch_set(set.vcurve, set.psens);
+    fk_touch_enable(set.touch);
     eng.nv = set.voices;
     home_list_build();
     vs_prog_load(&prog, set.bank);
@@ -410,13 +433,22 @@ static void app_main(void)
         uint32_t keys, down, up, rel, b, base = (uint32_t)(53 + 12 * set.oct), silent;
         platform_poll();
 
-        keys = fm1_in.notes;                    /* bit k: key k (0 = F3 .. 26 = G5) */
+        fk_touch_poll();                        /* GLOBAL KEYS TOUCH ON: the keys' velocity and pressure (fm1-kit fk_touch) */
+        keys = fk_touch_keys();                 /* bit k: key k (0 = F3 .. 26 = G5); TOUCH OFF: fm1_in.notes */
         down = keys & ~prev;
         up = prev & ~keys;
         prev = keys;
         for (k = 0; k < 27u; k++) {
-            if (down >> k & 1u) { held[k] = (uint8_t)(base + k); vs_engine_note_on(&eng, held[k], 100); midi_send(0x90u, held[k], 100); }
+            if (down >> k & 1u) {               /* (TOUCH OFF: 100, as ever) */
+                const uint32_t vel = fk_touch_vel(k);
+                held[k] = (uint8_t)(base + k); vs_engine_note_on(&eng, held[k], vel); midi_send(0x90u, held[k], vel);
+            }
             if (up >> k & 1u) { vs_engine_note_off(&eng, held[k]); midi_send(0x80u, held[k], 0); }
+        }
+        {   /* the keys' pressure (F3..C5, the hardest-pressed one) as channel pressure: the CTRL routes' PRESS, and out */
+            static uint8_t press_out;
+            const uint32_t pr = fk_touch_channel_pressure();   /* (TOUCH OFF: 0) */
+            if (pr != press_out) { press_out = (uint8_t)pr; eng.pressure = (uint8_t)pr; midi_send(0xD0u, pr, 0); }
         }
         b = fm1_input_edges(&rel);
         if (b & (1u << BTN_OCT_DOWN) && set.oct > -2) { set.oct--; set_changed(); }

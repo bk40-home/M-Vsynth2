@@ -51,6 +51,7 @@ static uint32_t sp_n;
 static void sp_reset(void) { sp_n = 0; sp_buf[0] = 0; }
 static void sp_cat(const char *s) { while (*s && sp_n < ANN_MAX) sp_buf[sp_n++] = *s++; sp_buf[sp_n] = 0; }
 static void sp_num(uint32_t v) { char t[12]; *put_u(t, v) = 0; sp_cat(t); }
+static void sp_signed(int32_t v) { if (v) sp_cat(v < 0 ? "MINUS " : "PLUS "); sp_num((uint32_t)(v < 0 ? -v : v)); }
 static void sp_trim(const char *s, uint32_t len)   /* a name: no trailing spaces */
 {
     uint32_t n = len, i;
@@ -151,6 +152,11 @@ static void sp_global_cell(uint32_t c)
         if (c == 0u) { sp_cat("THEME "); sp_cat(UI_THEMES[set.theme].name); }
         else if (c == 1u) sp_cat(set.colour ? "COLOUR PATCH" : "COLOUR THEME");
         else if (c == 2u) sp_cat(!set.bt ? "BLUETOOTH OFF" : fk_ble_state() == FK_BLE_LINKED ? "BLUETOOTH LINKED" : "BLUETOOTH ON");
+    } else if (gpage == GP_KEYS) {              /* (Kris 22 Nov: velocity and pressure from the keys) */
+        if (c == 0u) sp_cat(set.touch ? "TOUCH ON" : "TOUCH OFF");
+        else if (c == 1u) { sp_cat("VELOCITY CURVE "); sp_signed(set.vcurve); }
+        else if (c == 2u) { sp_cat("PRESSURE SENSITIVITY "); sp_signed(set.psens); }
+        else if (c == 3u && set.touch && fk_touch_last_vel()) { sp_cat("LAST VELOCITY "); sp_num(fk_touch_last_vel()); }
     } else {
         if (c == 0u) { sp_cat("CPU "); sp_num(dg_avg); sp_cat("%"); }
         else if (c == 1u) { sp_cat("PEAK "); sp_num(dg_peak); sp_cat("%"); }
@@ -185,7 +191,7 @@ static void sp_front(int all)
         if (save_bank != prog.bank) sp_cat(". THE BANK LOADS ON SAVE");
     } else {                                    /* GLOBAL */
         if (gpage == GP_KNOBS) sp_cat("HOME KNOBS. ");
-        else { sp_cat("GLOBAL "); sp_num(gpage); sp_cat(" OF 3. "); }
+        else { sp_cat("GLOBAL "); sp_num(gpage); sp_cat(" OF 4. "); }
         for (c = 0, any = 0; c < 4u; c++) {      /* (DIAG's meters too: WHERE and the page say them, a change doesn't) */
             const uint32_t at = sp_n;
             uint32_t was;
@@ -366,6 +372,11 @@ static void speak_dump(const char *path)
     { const uint8_t th = set.theme; for (set.theme = 0; set.theme < UI_NTHEME; set.theme++) { sp_reset(); sp_global_cell(0); OUT("KNOB"); } set.theme = th; }
     sp_reset(); sp_global_cell(1); OUT("KNOB");
     { const uint8_t bt = set.bt; for (set.bt = 0; set.bt < 2u; set.bt++) { sp_reset(); sp_global_cell(2); OUT("KNOB"); } set.bt = bt; }
+    gpage = GP_KEYS;
+    { const uint8_t t = set.touch; for (set.touch = 0; set.touch < 2u; set.touch++) { sp_reset(); sp_global_cell(0); OUT("KNOB"); } set.touch = t; }
+    { const int8_t v = set.vcurve; for (set.vcurve = -5; set.vcurve <= 5; set.vcurve++) { sp_reset(); sp_global_cell(1); OUT("KNOB"); } set.vcurve = v; }
+    { const int8_t v = set.psens; for (set.psens = -5; set.psens <= 5; set.psens++) { sp_reset(); sp_global_cell(2); OUT("KNOB"); } set.psens = v; }
+    sp_reset(); sp_cat("LAST VELOCITY "); sp_num(87); OUT("KNOB");
     fprintf(f, "MSG\tOCTAVE UP 2\nMSG\tOCTAVE DOWN 1\nMSG\tOCTAVE 0\nMSG\tALL NOTES OFF\n");
     sp_reset(); sp_cat("SAVED "); sp_prog(0); OUT("MSG");
     fprintf(f, "WARN\tNOT SAVED: THE BANK COULD NOT BE WRITTEN\n");

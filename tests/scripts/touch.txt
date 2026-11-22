@@ -1,0 +1,37 @@
+# GLOBAL 3/4 KEYS (fm1-kit fk_touch, Kris 22 Nov): the keys through fm1-base's own key model ("T touch K V P": key K
+# down landing at velocity V, then pressed P % harder once settled; V 0 = up). GLO nine times: its five patch pages,
+# HOME KNOBS, GLOBAL 1/4, 2/4, 3/4 KEYS. FM-1 ids: enc KNOB1..4 2..5; button 7 GLO.
+# Expected (tests/run_host.sh tests/scripts/touch.txt): TOUCH OFF plays 100; ON, the note-ons carry the velocities
+# asked for (within a step or two), key 9 held with 60 % sends channel pressure (D0) up and back to 0, the top-row
+# key 22 has a velocity and no pressure; OFF again: 100. CURVE +2 shows on the knob only: the model lands each key
+# where the curve in use reads the velocity asked for, so its effect is for the FM-1 (a hard and a soft press).
+100 btn 7
+200 btn 7
+300 btn 7
+400 btn 7
+500 btn 7
+600 btn 7
+700 btn 7
+800 btn 7
+900 btn 7
+1000 touch 9 80 0
+1300 touch 9 0 0
+1400 shot
+1500 enc 2 1
+1700 touch 0 30 0
+2000 touch 0 0 0
+2200 touch 5 120 0
+2500 touch 5 0 0
+2700 touch 9 80 60
+3400 shot
+3600 touch 9 0 0
+3800 touch 22 90 0
+4100 touch 22 0 0
+4300 enc 3 2
+4500 touch 9 80 0
+4800 touch 9 0 0
+5000 shot
+5100 enc 2 -1
+5300 touch 9 80 0
+5600 touch 9 0 0
+5800 end

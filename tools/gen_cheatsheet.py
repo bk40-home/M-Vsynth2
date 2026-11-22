@@ -53,7 +53,7 @@ small{{color:#888}}.t{{font-weight:600}}.cols{{columns:2}}@media print{{body{{ma
 </style></head><body>
 <h1>M-Vsynth2</h1><p>Synth2 (the open-source Synth1) on the M-VAVE FM-1. Every patch parameter is on a page; the number is its <code>.sy1</code> index.</p>
 <h2>Buttons</h2><table>
-<tr><th>LFO EDIT ENV SEL FX GLO</th><td>a section: the first press opens its page, the next steps through them (GLO ends on HOME KNOBS, the patch's choice of HOME's four knobs; then GLOBAL 1/3: MIDI CH, VOICES, TEMPO; 2/3: THEME, COLOUR; 3/3: DIAG)</td></tr>
+<tr><th>LFO EDIT ENV SEL FX GLO</th><td>a section: the first press opens its page, the next steps through them (GLO ends on HOME KNOBS, the patch's choice of HOME's four knobs; then GLOBAL 1/4: MIDI CH, VOICES, TEMPO; 2/4: THEME, COLOUR, BT MIDI; 3/4 KEYS: TOUCH (velocity and pressure from the keys), CURVE, SENS; 4/4: DIAG)</td></tr>
 <tr><th>ARP</th><td>tap: the arp on / off; hold: the ARP page</td></tr>
 <tr><th>KNOB 1..4</th><td>the page's four columns (HOME: the patch's HOME KNOBS; FREQ, RES, AMOUNT, GAIN unless set)</td></tr>
 <tr><th>SELECT</th><td>the column last turned, one step at a time</td></tr><tr><th>ALGORITHM</th><td>every page in turn</td></tr>

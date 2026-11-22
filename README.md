@@ -67,7 +67,7 @@ strip, CPU, the tempo and the octave.
 | **ENV** | MOD ENV, FILTER ENV, AMP ENV |
 | **SEL** | FILTER (2 pages), AMP |
 | **FX** | FX SWITCH (EFFECT, DELAY, CHORUS on / off), EFFECT, EQ, DELAY (2 pages), CHORUS (2 pages) |
-| **GLO** | VOICE, UNISON (2 pages), CONTROL (2 pages), HOME KNOBS (which parameter each of HOME's four knobs turns: kept with the patch, so SAVE keeps it; a `.sy1`, or a patch sent without them, gets FREQ, RES, AMOUNT, GAIN), GLOBAL 1/3 (MIDI CH, VOICES, TEMPO; CLOCK reads INT or EXT), GLOBAL 2/3 (THEME, COLOUR), GLOBAL 3/3 (DIAG) |
+| **GLO** | VOICE, UNISON (2 pages), CONTROL (2 pages), HOME KNOBS (which parameter each of HOME's four knobs turns: kept with the patch, so SAVE keeps it; a `.sy1`, or a patch sent without them, gets FREQ, RES, AMOUNT, GAIN), GLOBAL 1/4 (MIDI CH, VOICES, TEMPO; CLOCK reads INT or EXT), GLOBAL 2/4 (THEME, COLOUR, BT MIDI), GLOBAL 3/4 KEYS (TOUCH, CURVE, SENS; LAST VEL reads the last velocity), GLOBAL 4/4 (DIAG) |
 | **ARP** | tap: the arp on / off; hold 0.4 s: ARP |
 | **SEQ** | BANK: KNOB 1 the bank (FACTORY, U1 .. U8), SELECT or PRESETS its 128 slots; the patch under the cursor plays |
 | **SAVE** | its screen: KNOB 1 the bank (U1 .. U8), KNOB 2 the slot (it shows what is there, in any bank: REPLACES and its name, or EMPTY SLOT), KNOB 3 the cursor in the name and KNOB 4 (or SELECT) the character under it; SAVE again writes, any other button leaves. The bank goes to flash once nothing sounds |
@@ -81,18 +81,37 @@ does, drawn from the patch (the filter's response, the envelope's shape, the wav
 echoes, the signal path...); the four knobs, in the order of KNOB 1..4; the program at the foot. A knob shows its kind:
 an arc from the start (a value), from the top (a signed value), a segment a choice, or a switch. The knob in hand turns
 to the accent colour for 1.5 s, with its value large on the graph. FREQ's thin outer arc is the span the filter
-envelope adds. Six themes (SEA, EMBER, ICE, ORCHID, CRT, PAPER) on GLOBAL 2/3; COLOUR PATCH takes each patch's `.sy1`
+envelope adds. Six themes (SEA, EMBER, ICE, ORCHID, CRT, PAPER) on GLOBAL 2/4; COLOUR PATCH takes each patch's `.sy1`
 colour as the theme's own.
 
 ## Bluetooth MIDI
 
 The FM-1 is a Bluetooth MIDI device called **M-Vsynth2 XXXX**: connect to it from a Mac (Audio MIDI Setup >
 Bluetooth Configuration), an iPhone or an iPad (the app's Bluetooth MIDI page). It plays what comes in and sends its keys
-out, as over USB. **BT MIDI** on GLOBAL 2/3 switches it ON or OFF and shows **LINKED** while a computer is connected.
+out, as over USB. **BT MIDI** on GLOBAL 2/4 switches it ON or OFF and shows **LINKED** while a computer is connected.
 It is ON from the factory and kept with the settings. One link at a time, no pairing code. Patches, the library page
 and the screen reader stay on USB, and the MIDI clock goes out on USB only. Bluetooth starts at power-on, and the
 first second after that is silent while the radio calibrates. The stack is fm1-base's own (no JieLi library):
 `third_party/fm1-kit/firmware/fk_ble/README.md`. `./build.sh --no-ble` builds without it (`mvsynth2-usb.fwsc`).
+
+## Velocity and pressure from the keys
+
+The FM-1's own keys can play with velocity and pressure, with no change to the hardware. Turn **TOUCH** ON on GLOBAL
+3/4 KEYS (it is OFF from the factory, and kept with the settings). Then:
+
+- **Velocity on all 27 keys.** It goes to the engine (AMP VEL, and the filter envelope with VEL SW) and out over USB
+  and Bluetooth. With TOUCH OFF every key plays at 100, as before.
+- **Pressure on F3 to C5.** The hardest-pressed key is the channel pressure: it drives the CONTROL page's PRESS routes
+  and goes out as channel pressure (D0). The top seven keys, C#5 to G5, have velocity but no pressure (the hardware).
+- **CURVE** (-5 to +5): + makes the loudest notes harder to reach, - easier. **SENS** (-5 to +5): + gives full pressure
+  for a lighter lean. 0 is how fm1-base tuned them.
+- The page's graph shows the last velocity, the pressure going out and each key's pressure while you play, so you
+  can set CURVE and SENS by feel.
+
+Switching TOUCH on or off ends any notes still held. While it is on, a held key's column LEDs are dark for the
+moments the key is read, so a lit key can look a little dimmer. The sensing is Charles Vestal's, from fm1-base:
+`third_party/fm1-kit/firmware/fk_touch/README.md`. The SMK-37 build keeps its own velocity, and the web simulator has
+no TOUCH.
 
 ## Patches to and from a computer
 
