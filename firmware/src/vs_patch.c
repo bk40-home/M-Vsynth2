@@ -23,6 +23,7 @@ void vs_patch_init(vs_patch_t *p)
     for (i = 0; i < VS_NALL; i++) p->v[i] = VS_PARAMS[i].init;
     for (i = 0; i < VS_NAME; i++) p->name[i] = NAME[i];
     p->color = 2u;                              /* blue, as Synth2's INIT */
+    p->fav = 0;
     vs_home_set(p, 0);
 }
 
@@ -83,6 +84,7 @@ uint32_t vs_patch_sanitize(vs_patch_t *p)
     for (i = 0; i < VS_NAME; i++)
         if (p->name[i] < 32 || p->name[i] > 126) p->name[i] = ' ';
     if (p->color >= VS_NCOLOR) p->color = 0;
+    p->fav = p->fav ? 1u : 0u;
     for (i = 0; i < VS_HOME_N; i++)
         if (!vs_home_ok(p->home[i])) p->home[i] = vs_home_default(i);
     return n;
@@ -102,7 +104,7 @@ void vs_patch_pack(const vs_patch_t *p, vs_rec_t *r)
         r->b[REC_ROUTE + 2u * i] = (uint8_t)w;
         r->b[REC_ROUTE + 2u * i + 1u] = (uint8_t)(w >> 8);
     }
-    r->b[REC_COLOR] = p->color < VS_NCOLOR ? p->color : 0u;
+    r->b[REC_COLOR] = (uint8_t)((p->color < VS_NCOLOR ? p->color : 0u) | (p->fav ? VS_REC_FAV : 0u));
 }
 
 int vs_patch_unpack(const vs_rec_t *r, vs_patch_t *p)
@@ -118,7 +120,8 @@ int vs_patch_unpack(const vs_rec_t *r, vs_patch_t *p)
         uint32_t w = (uint32_t)r->b[REC_ROUTE + 2u * i] | (uint32_t)r->b[REC_ROUTE + 2u * i + 1u] << 8;
         p->v[ROUTE_ID[i]] = w == 0xFFFFu ? -1 : (int32_t)w;
     }
-    p->color = r->b[REC_COLOR];
+    p->color = r->b[REC_COLOR] & (VS_REC_FAV - 1u);
+    p->fav = r->b[REC_COLOR] & VS_REC_FAV ? 1u : 0u;
     vs_home_set(p, 0);                          /* (not in the record: the caller sets them when it has them) */
     vs_own_set(p, 0);                           /* (the same) */
     vs_patch_sanitize(p);

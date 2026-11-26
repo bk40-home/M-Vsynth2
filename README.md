@@ -69,7 +69,7 @@ strip, CPU, the tempo and the octave.
 | **FX** | FX SWITCH (EFFECT, DELAY, CHORUS on / off), EFFECT, EQ, DELAY (2 pages), CHORUS (2 pages) |
 | **GLO** | VOICE, UNISON (2 pages), CONTROL (2 pages), HOME KNOBS (which parameter each of HOME's four knobs turns: kept with the patch, so SAVE keeps it; a `.sy1`, or a patch sent without them, gets FREQ, RES, AMOUNT, GAIN), GLOBAL 1/4 (MIDI CH, VOICES, TEMPO; CLOCK reads INT or EXT), GLOBAL 2/4 (THEME, COLOUR, BT MIDI), GLOBAL 3/4 KEYS (TOUCH, CURVE, SENS; LAST VEL reads the last velocity), GLOBAL 4/4 (DIAG) |
 | **ARP** | tap: the arp on / off; hold 0.4 s: ARP |
-| **SEQ** | BANK: KNOB 1 the bank (FACTORY, U1 .. U8), SELECT or PRESETS its 128 slots; the patch under the cursor plays |
+| **SEQ** | BANK: KNOB 1 the bank (FACTORY, U1 .. U8, then FAVOURITES), SELECT or PRESETS its 128 slots; the patch under the cursor plays. KNOB 2 right stars the slot as a favourite, left unstars it |
 | **SAVE** | its screen: KNOB 1 the bank (U1 .. U8), KNOB 2 the slot (it shows what is there, in any bank: REPLACES and its name, or EMPTY SLOT), KNOB 3 the cursor in the name and KNOB 4 (or SELECT) the character under it; SAVE again writes, any other button leaves. The bank goes to flash once nothing sounds |
 | **OCT- OCT+** | the octave; both held 1 s: all notes off |
 
@@ -110,8 +110,18 @@ The FM-1's own keys can play with velocity and pressure, with no change to the h
 
 Switching TOUCH on or off ends any notes still held. While it is on, a held key's column LEDs are dark for the
 moments the key is read, so a lit key can look a little dimmer. The sensing is Charles Vestal's, from fm1-base:
-`third_party/fm1-kit/firmware/fk_touch/README.md`. The SMK-37 build keeps its own velocity, and the web simulator has
-no TOUCH.
+`third_party/fm1-kit/firmware/fk_touch/README.md`. The SMK-37 build keeps its own keybed's velocity on all 37 keys,
+and the web simulator has no TOUCH.
+
+## Favourites
+
+On **SEQ**, turn **KNOB 2** right to star the patch under the cursor (a star shows by its name), left to unstar it. Turn
+**KNOB 1** past U8 for **FAVOURITES**: every starred patch in one list (FACTORY's first, as FA), its bank and slot
+beside it; SELECT or PRESETS plays one, KNOB 2 left takes it off the list. In U1 .. U8 the star is part of the patch, so
+it goes where the patch goes: SAVE to another slot, the library page (its **★ Favourite** button stars the patch shown),
+a `.sy1` download (a `fav=1` line, which Synth2 skips). FACTORY can't be written, so its stars are kept with the
+settings instead: the library page doesn't see them, but SAVE still carries a starred factory patch's star to the slot
+it goes to. Stars are written to flash (with the bank, or with the settings) once nothing is sounding.
 
 ## Patches to and from a computer
 
@@ -157,7 +167,8 @@ be installed on the computer.
 - **A knob turning**: its name and value (FREQUENCY 64) once it settles, and at least every half second while it turns.
   A CONTROL route says where it goes (ASSIGN 1 TO LFO 1 DEPTH).
 - **PRESETS, a program change, a bank**: the bank, slot and name. **SEQ**: the slot under the cursor and its place
-  (PAD PWM RAW, 3 OF 128).
+  (PAD PWM RAW, 3 OF 128; a favourite: PAD PWM RAW, STARRED, 3 OF 128); FAVOURITES also says the bank and slot
+  (PAD PWM RAW, U2 SLOT 3, 1 OF 4). KNOB 2 says STARRED or STAR REMOVED.
 - **SAVE**: where it writes and what it replaces; KNOB 3 says the cursor and its character, KNOB 4 the character
   (CAPITAL B, SMALL B, SPACE, DASH); the write says SAVED, or NOT SAVED as a warning.
 - **OCT- / OCT+** (OCTAVE UP 1), **all notes off**, the **HOME KNOBS** choices and **GLOBAL** pages.

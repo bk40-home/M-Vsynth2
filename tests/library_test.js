@@ -88,6 +88,14 @@ assert.equal(fac.filter(Boolean).length, data.factory.length);
   assert.equal(A.fingerprint(Object.assign({}, pats[5], {own: undefined})), A.fingerprint(pats[5])); n++;
   await A.device.audition(dev, fd);
   assert.deepEqual(dev.played[2].own, [90, 0]); n++;
+  /* the favourite's star (#12): bit 6 of the colour byte, as tools/sy1.py; on the wire, a fingerprint, a .sy1 */
+  const st = A.withFav(pats[6], true);
+  assert.equal(M.pack(st)[119], M.pack(pats[6])[119] | 0x40);
+  await A.device.write(dev, 6, 4, st);
+  const st2 = await A.device.readSlot(dev, 6, 4);
+  assert.ok(st2.fav); assert.equal(st2.color, pats[6].color); assert.equal(A.fingerprint(st2), A.fingerprint(st));
+  assert.notEqual(A.fingerprint(st), A.fingerprint(pats[6]));
+  assert.ok(A.parseFile("x.sy1", A.serialise(st))[0].fav); assert.ok(!/fav/.test(M.write(pats[6]))); n++;
   /* a bank out as a zip of NNN.sy1 and back in */
   const z = FK.zip(u3.map((p, s) => p && {name: A.fileName(p, s), data: A.serialise(p)}).filter(Boolean));
   const back = await FK.unzip(z);

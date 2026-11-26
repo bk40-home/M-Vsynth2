@@ -51,11 +51,13 @@ int main(int argc, char **argv)
         }
         for (i = 0; i < VS_NAME; i++) { rng = rng * 1664525u + 1013904223u; p.name[i] = (char)(32u + (rng >> 8) % 95u); }
         p.color = (uint8_t)(n % VS_NCOLOR);
+        p.fav = (uint8_t)(n / VS_NCOLOR & 1u);
         vs_patch_pack(&p, &r);
         for (i = 0; i < VS_REC; i++)
             if (r.b[i] > 127u && (i < VS_NAME + VS_NREC || i == VS_REC - 1u)) { EXPECT(0, "a record byte outside the routing words is 7-bit"); break; }
         EXPECT(!vs_rec_empty(&r), "a packed patch is not EMPTY");
-        EXPECT(vs_patch_unpack(&r, &q) == 0 && !memcmp(p.v, q.v, sizeof p.v) && !memcmp(p.name, q.name, VS_NAME) && p.color == q.color, "record round trip");
+        EXPECT(vs_patch_unpack(&r, &q) == 0 && !memcmp(p.v, q.v, sizeof p.v) && !memcmp(p.name, q.name, VS_NAME) && p.color == q.color
+               && p.fav == q.fav, "record round trip");
         if (fails) break;
     }
     memset(&r, 0, sizeof r); r.b[VS_NAME] = VS_REC_EMPTY;

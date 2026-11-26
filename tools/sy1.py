@@ -29,6 +29,7 @@ NPARAM, NAME, REC, EMPTY = 99, 16, 120, 0x7F
 ROUTING = (86, 87, 88, 89)
 REC_ID = [i for i in range(NPARAM) if i not in ROUTING]
 COLORS = ["default", "red", "blue", "green", "yellow"]
+FAV = 0x40                                      # the record's last byte: the favourite bit (vs_patch.h VS_REC_FAV)
 PLAY_MODE, LFO1_SPEED, LFO1_DEPTH, SENS1, SENS2, UNI_DETUNE, UNI_VOICES = 38, 43, 44, 50, 51, 75, 93
 VER100, VER105, VER107 = 1, 2, 4
 
@@ -116,16 +117,19 @@ def ascii_name(raw):
 
 
 def parse(data):
-    """A .sy1 file's bytes -> {"name", "color", "version", "values"} as Synth2's ParseSy1 loads it."""
+    """A .sy1 file's bytes -> {"name", "color", "version", "values", "fav"} as Synth2's ParseSy1 loads it ("fav=1":
+    M-Vsynth2's favourite star, issue #12; Synth2 skips a key it doesn't know)."""
     t = tables()
     lines = re.split(rb"\r\n|\r|\n", data)
-    p = {"name": ascii_name(lines[0] if lines else b""), "color": "default", "version": 0, "values": list(t["de"])}
+    p = {"name": ascii_name(lines[0] if lines else b""), "color": "default", "version": 0, "values": list(t["de"]),
+         "fav": False}
     for line in lines[1:]:
         s = line.decode("latin-1")
         if "=" in s:
             k, val = s.split("=", 1)
             if k == "ver" and re.fullmatch(r"\s*-?\d+\s*", val): p["version"] = int(val)
             elif k == "color": p["color"] = val
+            elif k == "fav": p["fav"] = val.strip() == "1"
         elif "," in s:
             a, b = s.split(",", 1)
             if re.fullmatch(r"\s*[-+]?\d+\s*", a) and re.fullmatch(r"\s*[-+]?\d+\s*", b) and 0 <= int(a) < NPARAM:
@@ -136,7 +140,7 @@ def parse(data):
 
 def write(p):
     """The patch as .sy1 text, ver=112 (Synth2's WriteSy1: the newest version the original's loader reads)."""
-    return (p["name"].rstrip() + "\ncolor=" + p["color"] + "\nver=112\n" +
+    return (p["name"].rstrip() + "\ncolor=" + p["color"] + ("\nfav=1" if p.get("fav") else "") + "\nver=112\n" +
             "".join(f"{i},{v}\n" for i, v in enumerate(p["values"]))).encode("ascii")
 
 
@@ -152,7 +156,7 @@ def pack(p):
         w = 0xFFFF if v < 0 else v
         r[NAME + len(REC_ID) + 2 * k] = w & 0xFF
         r[NAME + len(REC_ID) + 2 * k + 1] = w >> 8
-    r[REC - 1] = COLORS.index(p["color"]) if p["color"] in COLORS else 0
+    r[REC - 1] = (COLORS.index(p["color"]) if p["color"] in COLORS else 0) | (FAV if p.get("fav") else 0)
     if r[NAME] == EMPTY:
         raise SystemExit("sy1: a record's first value byte can not be the EMPTY mark")
     return bytes(r)
@@ -176,9 +180,9 @@ def unpack(r):
     for k, i in enumerate(ROUTING):
         w = r[NAME + len(REC_ID) + 2 * k] | r[NAME + len(REC_ID) + 2 * k + 1] << 8
         v[i] = -1 if w == 0xFFFF else w
-    c = r[REC - 1]
+    c = r[REC - 1] & (FAV - 1)
     return {"name": bytes(r[:NAME]).decode("ascii", "replace"), "color": COLORS[c] if c < len(COLORS) else "default",
-            "version": 112, "values": v}
+            "version": 112, "values": v, "fav": bool(r[REC - 1] & FAV)}
 
 
 def files(args):

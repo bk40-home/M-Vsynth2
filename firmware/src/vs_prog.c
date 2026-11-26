@@ -132,3 +132,45 @@ int vs_prog_peek_name(const vs_prog_t *g, uint32_t bank, uint32_t slot, char nam
     for (k = 0; k < VS_NAME; k++) name[k] = b[k] >= 32u && b[k] <= 126u ? (char)b[k] : ' ';
     return 1;
 }
+
+int vs_prog_set_fav(vs_prog_t *g, uint32_t slot, int on)
+{
+    uint8_t *b;
+    uint8_t nb;
+    if (!g->bank || vs_prog_empty(g, slot)) return -1;
+    b = &g->r[slot].b[VS_REC - 1u];
+    nb = (uint8_t)(on ? *b | VS_REC_FAV : *b & ~VS_REC_FAV);
+    if (nb == *b) return 0;
+    *b = nb;
+    g->dirty = 1;
+    return 1;
+}
+
+static void fav_add(vs_fav_t *list, uint32_t *n, uint32_t bank, uint32_t slot, const uint8_t *r)
+{
+    uint32_t k;
+    vs_fav_t *f = &list[(*n)++];
+    f->bank = (uint8_t)bank; f->slot = (uint8_t)slot; f->color = (uint8_t)(r[VS_REC - 1u] & (VS_REC_FAV - 1u));
+    for (k = 0; k < VS_NAME; k++) f->name[k] = r[k] >= 32u && r[k] <= 126u ? (char)r[k] : ' ';
+}
+
+uint32_t vs_prog_favs(const vs_prog_t *g, vs_fav_t *list, uint32_t max)
+{
+    static uint8_t buf[4u * VS_REC];            /* four records at a glance: 32 short flash reads a bank */
+    uint32_t n = 0, bank, s, k;
+    for (bank = 1; bank <= VS_NBANK && n < max; bank++) {
+        if (bank == g->bank) {
+            for (s = 0; s < VS_NPROG && n < max; s++)
+                if (vs_prog_fav(g, s)) fav_add(list, &n, bank, s, g->r[s].b);
+            continue;
+        }
+        for (s = 0; s < VS_NPROG && n < max; s += 4u) {
+            if (slot_peek(bank - 1u, s * VS_REC, buf, sizeof buf)) break;   /* (never saved: none here) */
+            for (k = 0; k < 4u && n < max; k++) {
+                const uint8_t *r = &buf[k * VS_REC];
+                if (r[VS_NAME] != VS_REC_EMPTY && (r[VS_REC - 1u] & VS_REC_FAV)) fav_add(list, &n, bank, s + k, r);
+            }
+        }
+    }
+    return n;
+}

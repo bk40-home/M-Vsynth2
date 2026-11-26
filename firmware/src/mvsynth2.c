@@ -60,11 +60,18 @@ static volatile uint32_t cpu_sum, cpu_n, cpu_peak, cpu_clear;
 #define UI_SCOPE_N 220u
 static volatile int16_t scope[UI_SCOPE_N];      /* HOME's scope: the ISR fills it when asked (scope_req), vs_ui.c draws it */
 static volatile uint32_t scope_req, scope_seq, scope_pk;   /* scope_pk: the last capture's peak (the tail still heard?) */
+/* the output still heard (issue #11): a voice's release is over before the FX's tail is (the delay's echoes, the
+ * chorus), and a flash erase there (the settings, a bank: ~50 ms a sector with the interrupts off) cut the tail with
+ * a glitch and stalled the LED scan. The ISR sets it when a buffer has a sample over OUT_HEARD; the main loop takes it */
+#define OUT_HEARD 32                            /* Q15: about -60 dBFS */
+static volatile uint8_t out_heard;
 
 static void app_audio(int32_t *out, uint32_t n)
 {
-    uint32_t t0 = fm1_ticks(), dt;
+    uint32_t t0 = fm1_ticks(), dt, i;
     vs_engine_render(&eng, out, n);
+    for (i = 0; i + 1u < 2u * n; i += 8u)      /* every 4th frame, L and R: a tail is far slower than that */
+        if (out[i] > OUT_HEARD || out[i] < -OUT_HEARD || out[i + 1u] > OUT_HEARD || out[i + 1u] < -OUT_HEARD) { out_heard = 1; break; }
     dt = fm1_ticks() - t0;
     if (cpu_clear) { cpu_sum = 0; cpu_n = 0; cpu_peak = 0; cpu_clear = 0; }
     cpu_sum += dt;
@@ -100,6 +107,9 @@ static struct {
                                                    the keys, fm1-kit fk_touch), VEL CURVE and PRESS SENS -5..+5. Last: a
                                                    record from before still loads, with TOUCH OFF, 0, 0 */
     int8_t vcurve, psens;
+    uint8_t ffav[VS_NPROG / 8u];                /* FACTORY's favourites (Kris 26 Nov): a bit a slot, as FACTORY can't be
+                                                   written (U1..U8 keep the star in the patch, VS_REC_FAV). Last: a record
+                                                   from before still loads, with none */
 } set;
 static uint8_t set_dirty;
 /* a setting changed: saved once settings have rested 2 s (scrolling PRESETS or turning a GLOBAL knob is never cut by
@@ -107,6 +117,15 @@ static uint8_t set_dirty;
  * it saves (Kris 19 Nov) */
 static uint32_t set_chg;
 static void set_changed(void) { set_dirty = 1; set_chg = fm1_ms; }
+static int ffav_get(uint32_t s) { return s < VS_NPROG && (set.ffav[s >> 3] >> (s & 7u) & 1u); }
+static int ffav_set(uint32_t s, int on)         /* 1 changed (saved with the settings), 0 already so */
+{
+    const uint8_t m = (uint8_t)(1u << (s & 7u));
+    if (s >= VS_NPROG || ffav_get(s) == (on != 0)) return 0;
+    if (on) set.ffav[s >> 3] |= m; else set.ffav[s >> 3] &= (uint8_t)~m;
+    set_changed();
+    return 1;
+}
 
 /* ---- programs */
 static vs_prog_t prog;
@@ -114,6 +133,7 @@ static vs_xfer_t xfer;
 static uint32_t slot, slot_want, xfer_t;
 static int32_t bank_want = -1;
 static uint8_t edited, want_reload;
+static uint8_t flash_ok_now;                    /* nothing heard for 0.5 s: a flash erase may go now (main loop, #11) */
 static char prog_name[VS_NAME + 1u];
 
 static void prog_service(void)                  /* main loop: bring the slot asked for in, once the engine takes it */
@@ -121,7 +141,7 @@ static void prog_service(void)                  /* main loop: bring the slot ask
     vs_patch_t p;
     uint32_t i;
     if (bank_want >= 0 && (uint32_t)bank_want != prog.bank) {   /* a bank change: the old one to flash first */
-        if (prog.dirty && (eng.act || vs_prog_flush(&prog))) return;   /* (busy: the next loop) */
+        if (prog.dirty && (!flash_ok_now || vs_prog_flush(&prog))) return;   /* (heard: the next loop; #11) */
         vs_prog_load(&prog, (uint32_t)bank_want);
         set.bank = prog.bank; set_changed();
         slot_want = vs_prog_empty(&prog, slot_want) ? vs_prog_next(&prog, slot_want, 1) : slot_want;
@@ -139,6 +159,7 @@ static void prog_service(void)                  /* main loop: bring the slot ask
     }
     if (slot_want == slot && !want_reload) return;
     if (vs_prog_get(&prog, slot_want, &p)) { slot_want = slot; want_reload = 0; return; }   /* empty: stays */
+    if (!prog.bank) p.fav = (uint8_t)ffav_get(slot_want);   /* (FACTORY's star: SAVE carries it to a user slot) */
     if (vs_engine_load(&eng, &p)) return;       /* one is still landing: the next loop */
     slot = slot_want; want_reload = 0; edited = 0;
     set.slot = (uint8_t)slot; set_changed();
@@ -182,6 +203,67 @@ enum { SCR_HOME, SCR_PAGE, SCR_BANK, SCR_SAVE, SCR_GLOBAL };
 static uint32_t scr = SCR_HOME, page, col, scr_drawn = ~0u, page_drawn = ~0u;
 static uint8_t last_page[7];                    /* a section's page last seen (index into VS_PAGES) */
 static uint32_t cursor, save_bank = 1, save_slot, need_full = 1;
+/* SEQ's FAVOURITES (issue #12, Kris 25 Nov): KNOB 1 past U8 lists every starred patch, FACTORY's then U1..U8's;
+ * moving the cursor plays one (its bank comes in). KNOB 2 stars (right) or unstars (left) the slot under the cursor.
+ * U1..U8: the star is in the patch (vs_patch.h VS_REC_FAV), so SAVE and the library page carry it. FACTORY (Kris
+ * 26 Nov): a bit in the settings (set.ffav), as FACTORY can't be written; SAVE still carries it to a user slot. The
+ * list is built when it is opened and when something changes it (a star, the computer writing a bank) */
+static uint8_t fav_view;
+static uint32_t fav_n, fav_xfer, fav_t;         /* how many; xfer_t when built; when KNOB 2 last starred (the reader) */
+static vs_fav_t fav_list[VS_FAV_MAX];
+static void fav_build(void)                     /* FACTORY's first (set.ffav), then U1..U8 */
+{
+    uint32_t n = 0, s, k;
+    for (s = 0; s < VS_NPROG && n < VS_FAV_MAX; s++) {
+        if (!ffav_get(s) || VS_FACTORY[s][VS_NAME] == VS_REC_EMPTY) continue;
+        fav_list[n].bank = 0; fav_list[n].slot = (uint8_t)s;
+        fav_list[n].color = (uint8_t)(VS_FACTORY[s][VS_REC - 1u] & (VS_REC_FAV - 1u));
+        for (k = 0; k < VS_NAME; k++)
+            fav_list[n].name[k] = VS_FACTORY[s][k] >= 32u && VS_FACTORY[s][k] <= 126u ? (char)VS_FACTORY[s][k] : ' ';
+        n++;
+    }
+    fav_n = n + vs_prog_favs(&prog, fav_list + n, VS_FAV_MAX - n);
+    fav_xfer = xfer_t;
+    if (cursor >= fav_n) cursor = fav_n ? fav_n - 1u : 0u;
+}
+static void fav_open(void)                      /* the list, the cursor on the playing patch if it is in it */
+{
+    uint32_t i;
+    fav_view = 1; cursor = 0; fav_build();
+    for (i = 0; i < fav_n; i++) if (fav_list[i].bank == prog.bank && fav_list[i].slot == slot) { cursor = i; break; }
+}
+static void bank_cursor(int32_t e)              /* PRESETS / SELECT on SEQ: the cursor, and the slot it plays */
+{
+    if (fav_view) {
+        int32_t c;
+        if (!fav_n) return;
+        c = ((int32_t)cursor + e) % (int32_t)fav_n;
+        cursor = (uint32_t)(c < 0 ? c + (int32_t)fav_n : c);
+        bank_want = fav_list[cursor].bank; slot_want = fav_list[cursor].slot;   /* (prog_service: the bank first) */
+        return;
+    }
+    cursor = (cursor + 128u + (uint32_t)e) & 127u;
+    if (!vs_prog_empty(&prog, cursor)) slot_want = cursor;
+}
+/* a slot of the bank in RAM: starred? (FACTORY's from the settings, U1..U8's in the patch) */
+static int slot_fav(uint32_t sl)
+{
+    return vs_prog_empty(&prog, sl) ? 0 : prog.bank ? vs_prog_fav(&prog, sl) : ffav_get(sl);
+}
+static void fav_star(int on)                    /* KNOB 2 on SEQ */
+{
+    uint32_t s = cursor, b = prog.bank;
+    if (fav_view) {                             /* (only unstarring here; a user entry's bank is in once it plays) */
+        if (on || cursor >= fav_n) return;
+        b = fav_list[cursor].bank; s = fav_list[cursor].slot;
+        if (b && b != prog.bank) return;
+    }
+    if (!b) { if (VS_FACTORY[s][VS_NAME] == VS_REC_EMPTY || !ffav_set(s, on)) return; }   /* FACTORY: the settings */
+    else if (vs_prog_set_fav(&prog, s, on) <= 0) return;   /* (empty, or already so) */
+    if (b == prog.bank && s == slot) eng.patch.fav = (uint8_t)(on != 0);   /* (SAVE keeps it) */
+    fav_t = fm1_ms ? fm1_ms : 1u;
+    if (fav_view) fav_build();
+}
 /* SAVE names the patch (issue #4): KNOB 3 moves the cursor, KNOB 4 (or SELECT) the character under it */
 static char save_name[VS_NAME];
 static uint32_t save_pos;
@@ -398,6 +480,14 @@ static void global_edit(uint32_t k, int32_t e)
     ui_gtouch();
 }
 
+/* a note key's velocity as it goes down: the FM-1's from GLOBAL KEYS (fm1-kit fk_touch: 100 while TOUCH is OFF); the
+ * SMK-37's from its own keybed (smk_input.h: the factory curves), as before fk_touch (issue #10) */
+#if BOARD_SMK37
+#define KEY_VEL(k) (fm1_in.key_vel[SMK_KEY_F3 + (k)] ? (uint32_t)fm1_in.key_vel[SMK_KEY_F3 + (k)] : 100u)
+#else
+#define KEY_VEL(k) fk_touch_vel(k)
+#endif
+
 static void app_main(void)
 {
     uint32_t panic_t = 0, prev = 0, k, cpu_t = 0, pk_slot[12] = {0}, pk_i = 0, avg_us = 0, peak_pc = 0, arp_t = 0, quiet_t = 0;
@@ -406,9 +496,14 @@ static void app_main(void)
     vs_engine_init(&eng);
     vs_xfer_init(&xfer);
     if (settings_load(&set, sizeof set) == 0) {}
-    else if (settings_load(&set, __builtin_offsetof(__typeof__(set), touch)) == 0) set.touch = 0xFFu;   /* (before KEYS) */
-    else if (settings_load(&set, __builtin_offsetof(__typeof__(set), bt)) == 0) { set.bt = 1; set.touch = 0xFFu; }   /* (before BLUETOOTH: ON) */
-    else set.bt = 0xFFu;                        /* (none: the defaults below) */
+    else {
+        uint32_t i;
+        if (settings_load(&set, __builtin_offsetof(__typeof__(set), ffav)) == 0) {}   /* (before FACTORY's stars) */
+        else if (settings_load(&set, __builtin_offsetof(__typeof__(set), touch)) == 0) set.touch = 0xFFu;   /* (before KEYS) */
+        else if (settings_load(&set, __builtin_offsetof(__typeof__(set), bt)) == 0) { set.bt = 1; set.touch = 0xFFu; }   /* (before BLUETOOTH: ON) */
+        else set.bt = 0xFFu;                    /* (none: the defaults below) */
+        for (i = 0; i < sizeof set.ffav; i++) set.ffav[i] = 0;
+    }
     if (set.bt > 1u || set.ch > 16u || !set.voices || set.voices > VS_NV || set.tempo < 40u ||
         set.tempo > 240u || set.bank > VS_NBANK || set.oct < -2 || set.oct > 2 || set.theme >= UI_NTHEME || set.colour > 1u) {
         set.ch = 0; set.voices = VS_NV; set.tempo = 120; set.bank = 0; set.slot = 0; set.oct = 0; set.theme = 0; set.colour = 0;
@@ -439,12 +534,31 @@ static void app_main(void)
         up = prev & ~keys;
         prev = keys;
         for (k = 0; k < 27u; k++) {
-            if (down >> k & 1u) {               /* (TOUCH OFF: 100, as ever) */
-                const uint32_t vel = fk_touch_vel(k);
+            if (down >> k & 1u) {               /* (TOUCH OFF: 100, as ever; the SMK-37: its keybed's own) */
+                const uint32_t vel = KEY_VEL(k);
                 held[k] = (uint8_t)(base + k); vs_engine_note_on(&eng, held[k], vel); midi_send(0x90u, held[k], vel);
             }
             if (up >> k & 1u) { vs_engine_note_off(&eng, held[k]); midi_send(0x80u, held[k], 0); }
         }
+#if BOARD_SMK37
+        {   /* the SMK-37's outer keys, C3..E3 and G#5..C6 (issue #10): not in the 27 bits, events of their own
+               (smk_input.h smk_extkey_take: keybed key << 8 | velocity, 0 = let go). Each ends the note it began,
+               whatever the octave is by then */
+            static uint8_t xheld[FM1_NKEY];
+            int32_t x;
+            while ((x = smk_extkey_take()) >= 0) {
+                const uint32_t kk = (uint32_t)x >> 8 & 0xFFu, vel = (uint32_t)x & 0x7Fu;
+                const int32_t n = (int32_t)base + (int32_t)kk - (int32_t)SMK_KEY_F3;
+                if (kk >= FM1_NKEY) continue;
+                if (vel && n >= 0 && n <= 127) {
+                    if (xheld[kk]) { vs_engine_note_off(&eng, xheld[kk]); midi_send(0x80u, xheld[kk], 0); }
+                    xheld[kk] = (uint8_t)n; vs_engine_note_on(&eng, (uint32_t)n, vel); midi_send(0x90u, (uint32_t)n, vel);
+                } else if (!vel && xheld[kk]) {
+                    vs_engine_note_off(&eng, xheld[kk]); midi_send(0x80u, xheld[kk], 0); xheld[kk] = 0;
+                }
+            }
+        }
+#endif
         {   /* the keys' pressure (F3..C5, the hardest-pressed one) as channel pressure: the CTRL routes' PRESS, and out */
             static uint8_t press_out;
             const uint32_t pr = fk_touch_channel_pressure();   /* (TOUCH OFF: 0) */
@@ -463,7 +577,7 @@ static void app_main(void)
         if (arp_t && fm1_ms - arp_t >= 400u) { arp_t = 0; section(VS_BTN_ARP); }
         if (arp_t && rel >> BTN_ARP & 1u) { arp_t = 0; vs_param_set(&eng.patch, VS_P_ARP_ON, !eng.patch.v[VS_P_ARP_ON]); edited = 1; ui_touch(VS_P_ARP_ON); }
         if (b >> BTN_HOME & 1u) { scr = SCR_HOME; need_full = 1; }
-        if (b >> BTN_SEQ & 1u) { scr = SCR_BANK; cursor = slot & 127u; need_full = 1; }
+        if (b >> BTN_SEQ & 1u) { scr = SCR_BANK; need_full = 1; if (fav_view) fav_open(); else cursor = slot & 127u; }
         if (b >> BTN_SAVE & 1u) {
             if (scr != SCR_SAVE) { scr = SCR_SAVE; save_bank = prog.bank ? prog.bank : 1u; save_slot = slot & 127u; save_begin(); need_full = 1; }
             else {                              /* write: the bank comes in if it is not the one shown */
@@ -486,7 +600,7 @@ static void app_main(void)
             }
         }
         if ((e = fm1_enc_take(ENC_PRESETS)) != 0) {
-            if (scr == SCR_BANK) { cursor = (cursor + 128u + (uint32_t)e) & 127u; if (!vs_prog_empty(&prog, cursor)) slot_want = cursor; }
+            if (scr == SCR_BANK) bank_cursor(e);
             else {
                 while (e > 0) { slot_want = vs_prog_next(&prog, slot_want, 1); e--; }
                 while (e < 0) { slot_want = vs_prog_next(&prog, slot_want, -1); e++; }
@@ -503,7 +617,14 @@ static void app_main(void)
             if ((e = fm1_enc_take(ENC_KNOB1 + k)) != 0) {
                 if (scr == SCR_PAGE && VS_PAGES[page].id[k] != 0xFFu) { edit(VS_PAGES[page].id[k], e); col = k; }
                 else if (scr == SCR_HOME) edit(eng.patch.home[k], e);   /* (the patch's HOME KNOBS) */
-                else if (scr == SCR_BANK && k == 0u) { int32_t nb = (int32_t)prog.bank + e; bank_want = nb < 0 ? 0 : nb > (int32_t)VS_NBANK ? (int32_t)VS_NBANK : nb; need_full = 1; }
+                else if (scr == SCR_BANK && k == 0u) {   /* FACTORY, U1..U8, then FAVOURITES */
+                    int32_t nb = (fav_view ? (int32_t)VS_NBANK + 1 : (int32_t)prog.bank) + e;
+                    nb = nb < 0 ? 0 : nb > (int32_t)VS_NBANK + 1 ? (int32_t)VS_NBANK + 1 : nb;
+                    if (nb == (int32_t)VS_NBANK + 1) { if (!fav_view) fav_open(); }
+                    else { if (fav_view) { fav_view = 0; cursor = slot & 127u; } bank_want = nb; }
+                    need_full = 1;
+                }
+                else if (scr == SCR_BANK && k == 1u) fav_star(e > 0);
                 else if (scr == SCR_SAVE && k == 0u) { int32_t nb = (int32_t)save_bank + e; save_bank = (uint32_t)(nb < 1 ? 1 : nb > (int32_t)VS_NBANK ? (int32_t)VS_NBANK : nb); }
                 else if (scr == SCR_SAVE && k == 1u) save_slot = (save_slot + 128u + (uint32_t)e) & 127u;
                 else if (scr == SCR_SAVE && k == 2u) { int32_t q = (int32_t)save_pos + e; save_pos = (uint32_t)(q < 0 ? 0 : q > (int32_t)VS_NAME - 1 ? (int32_t)VS_NAME - 1 : q); }
@@ -515,12 +636,13 @@ static void app_main(void)
                 if (kd == VS_K_SRC || kd == VS_K_DST) edit(id, e);   /* the routes step over their list (not raw: #8) */
                 else { const uint32_t m = (uint32_t)pmax(id); int32_t v = pval(id) + e;   /* (fine: no fast turn) */
                     vs_param_set(&eng.patch, id, v > (int32_t)m ? (int32_t)m : v); ui_touch(id); edited = 1; } }
-            else if (scr == SCR_BANK) { cursor = (cursor + 128u + (uint32_t)e) & 127u; if (!vs_prog_empty(&prog, cursor)) slot_want = cursor; }
+            else if (scr == SCR_BANK) bank_cursor(e);
             else if (scr == SCR_SAVE) save_char(e);
             else if (scr == SCR_GLOBAL) global_edit(col, e);
         }
         midi_in();
         prog_service();
+        if (scr == SCR_BANK && fav_view && fav_xfer != xfer_t) fav_build();   /* (the computer wrote a bank) */
         if (!(clk_t && fm1_ms - clk_t < 1000u)) eng.bpm_q8 = (uint32_t)set.tempo << 8;   /* no clock: GLOBAL's tempo */
         {   /* the transfer's answers, one a pass */
             static uint8_t msg[VS_XF_MSG_MAX];
@@ -538,10 +660,13 @@ static void app_main(void)
             if (scr_was == SCR_GLOBAL && scr != SCR_GLOBAL) set_chg = fm1_ms - 2000u;
             scr_was = scr;
         }
-        /* flash, only when nothing has sounded for 0.5 s (an erase holds the interrupts off) */
-        silent = eng.act == 0u;
+        /* flash, only when nothing has been heard for 0.5 s (an erase holds the interrupts off): no voice, no arp
+           waiting for its next step, and no tail at the output (issue #11: out_heard) */
+        silent = eng.act == 0u && eng.arp_n == 0u && !out_heard;
+        out_heard = 0;
         if (!silent) quiet_t = fm1_ms;
-        if (silent && fm1_ms - quiet_t >= 500u) {
+        flash_ok_now = silent && fm1_ms - quiet_t >= 500u;
+        if (flash_ok_now) {
             if (prog.dirty) (void)vs_prog_flush(&prog);
             if (set_dirty && scr != SCR_GLOBAL && fm1_ms - set_chg >= 2000u) { set_dirty = 0; (void)settings_save(&set, sizeof set); }
         }

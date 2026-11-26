@@ -48,3 +48,20 @@ const char *vs_prog_bank_name(uint32_t bank);
 /* the name in a slot of any bank, without loading it (SAVE shows what it replaces): 1 a patch (name: 16 characters,
  * space padded), 0 empty or unreadable. The bank in RAM is read there; another, a glance at flash (slot_peek) */
 int vs_prog_peek_name(const vs_prog_t *g, uint32_t bank, uint32_t slot, char name[VS_NAME]);
+
+/* ---- favourites (issue #12, Kris 25 Nov): a star in the patch itself (vs_patch.h VS_REC_FAV), so it goes where the
+ * patch goes. FACTORY is read-only: its patches can't be starred */
+static inline int vs_prog_fav(const vs_prog_t *g, uint32_t slot)
+{
+    return !vs_prog_empty(g, slot) && (g->r[slot].b[VS_REC - 1u] & VS_REC_FAV) != 0u;
+}
+/* star (on) or unstar a slot of the bank in RAM: 1 changed (the bank is marked), 0 already so, -1 FACTORY or empty */
+int vs_prog_set_fav(vs_prog_t *g, uint32_t slot, int on);
+#define VS_FAV_MAX 128u                         /* SEQ's FAVOURITES list holds this many (the first, U1 on) */
+typedef struct {
+    uint8_t bank, slot, color;
+    char name[VS_NAME];
+} vs_fav_t;
+/* every starred patch of U1..U8, in bank and slot order (the bank in RAM as it is there, the others from flash):
+ * how many (at most max) */
+uint32_t vs_prog_favs(const vs_prog_t *g, vs_fav_t *list, uint32_t max);

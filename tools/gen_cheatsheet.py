@@ -58,7 +58,7 @@ small{{color:#888}}.t{{font-weight:600}}.cols{{columns:2}}@media print{{body{{ma
 <tr><th>KNOB 1..4</th><td>the page's four columns (HOME: the patch's HOME KNOBS; FREQ, RES, AMOUNT, GAIN unless set)</td></tr>
 <tr><th>SELECT</th><td>the column last turned, one step at a time</td></tr><tr><th>ALGORITHM</th><td>every page in turn</td></tr>
 <tr><th>PRESETS</th><td>the program (slots that hold a patch)</td></tr><tr><th>HOME</th><td>the home screen</td></tr>
-<tr><th>SEQ</th><td>the bank browser (K1 the bank; turning plays the slot)</td></tr>
+<tr><th>SEQ</th><td>the bank browser (K1 the bank, past U8 FAVOURITES; turning plays the slot; K2 stars it)</td></tr>
 <tr><th>SAVE</th><td>the save screen (K1 bank U1..U8, K2 slot: it shows what it replaces, K3 the cursor in the name, K4 or SELECT its character); SAVE again writes, any other button leaves</td></tr>
 <tr><th>OCT- OCT+</th><td>the octave</td></tr></table>
 <h2>Pages</h2><table><tr><th>Button</th><th>Page</th><th>KNOB 1</th><th>KNOB 2</th><th>KNOB 3</th><th>KNOB 4</th></tr>

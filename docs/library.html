@@ -662,6 +662,9 @@ window.FK_DATA = {"sy1":{"lo":[0,1,0,0,0,0,0,0,0,-24,0,0,0,0,0,0,0,0,0,0,0,0,0,0
   const NPARAM = 99, NAME = 16, REC = 120, EMPTY = 0x7F, ROUTING = [86, 87, 88, 89];
   const REC_ID = [...Array(NPARAM).keys()].filter(i => !ROUTING.includes(i));
   const COLORS = ["default", "red", "blue", "green", "yellow"];
+  /* a favourite (issue #12, Kris 25 Nov): bit 6 of the record's last byte, under it the colour; in a .sy1 "fav=1"
+   * (written only when set: Synth2 skips a key it doesn't know). The FM-1's SEQ shows it as a star and lists them */
+  const FAV = 0x40;
   /* HOME's four knobs (vs_patch.h, Kris 18 Nov): a patch's .home, four parameter ids, 0x7F that knob's default. Not in
    * a .sy1 (it has no place for them): a patch from a file has the defaults. On the wire, four bytes after a record */
   const HOME_N = 4, HOME_DEF = 0x7F, REC7 = 138;
@@ -702,7 +705,7 @@ window.FK_DATA = {"sy1":{"lo":[0,1,0,0,0,0,0,0,0,-24,0,0,0,0,0,0,0,0,0,0,0,0,0,0
     /* the first line is the name (its encoding guessed); the rest is read as Latin-1 at once */
     let e = 0;
     while (e < bytes.length && bytes[e] !== 10 && bytes[e] !== 13) e++;
-    const p = {name: asciiName(bytes.subarray(0, e)), color: "default", version: 0, values: T.de.slice(), home: homeOf(null), own: ownOf(null)};
+    const p = {name: asciiName(bytes.subarray(0, e)), color: "default", version: 0, values: T.de.slice(), home: homeOf(null), own: ownOf(null), fav: false};
     const lines = LATIN1.decode(bytes.subarray(e)).split(/\r\n|\r|\n/);
     for (const s of lines) {
       if (!s) continue;
@@ -710,6 +713,7 @@ window.FK_DATA = {"sy1":{"lo":[0,1,0,0,0,0,0,0,0,-24,0,0,0,0,0,0,0,0,0,0,0,0,0,0
       if (q >= 0) {
         const k = s.slice(0, q), v = s.slice(q + 1);
         if (k === "ver" && /^\s*-?\d+\s*$/.test(v)) p.version = +v; else if (k === "color") p.color = v;
+        else if (k === "fav") p.fav = v.trim() === "1";
       } else if (c >= 0) {
         const x = s.slice(0, c), y = s.slice(c + 1);
         if (/^\s*[-+]?\d+\s*$/.test(x) && /^\s*[-+]?\d+\s*$/.test(y) && +x >= 0 && +x < NPARAM) p.values[+x] = clamp(+x, +y);
@@ -725,7 +729,7 @@ window.FK_DATA = {"sy1":{"lo":[0,1,0,0,0,0,0,0,0,-24,0,0,0,0,0,0,0,0,0,0,0,0,0,0
     for (let i = 0; i < NAME; i++) r[i] = p.name.charCodeAt(i) || 32;
     REC_ID.forEach((id, j) => { r[NAME + j] = clamp(id, p.values[id]) - T.lo[id]; });
     ROUTING.forEach((id, k) => { const v = clamp(id, p.values[id]), w = v < 0 ? 0xFFFF : v; r[NAME + REC_ID.length + 2 * k] = w & 255; r[NAME + REC_ID.length + 2 * k + 1] = w >> 8; });
-    r[REC - 1] = Math.max(0, COLORS.indexOf(p.color));
+    r[REC - 1] = Math.max(0, COLORS.indexOf(p.color)) | (p.fav ? FAV : 0);
     return r;
   }
   function empty() { const r = new Uint8Array(REC).fill(0); for (let i = 0; i < NAME; i++) r[i] = 32; r[NAME] = EMPTY; return r; }
@@ -734,14 +738,15 @@ window.FK_DATA = {"sy1":{"lo":[0,1,0,0,0,0,0,0,0,-24,0,0,0,0,0,0,0,0,0,0,0,0,0,0
     const v = new Array(NPARAM).fill(0);
     REC_ID.forEach((id, j) => { v[id] = clamp(id, r[NAME + j] + T.lo[id]); });
     ROUTING.forEach((id, k) => { const w = r[NAME + REC_ID.length + 2 * k] | r[NAME + REC_ID.length + 2 * k + 1] << 8; v[id] = w === 0xFFFF ? -1 : w; });
-    return {name: String.fromCharCode(...r.slice(0, NAME)), color: COLORS[r[REC - 1]] || "default", version: 112, values: v,
+    return {name: String.fromCharCode(...r.slice(0, NAME)), color: COLORS[r[REC - 1] & (FAV - 1)] || "default", version: 112, values: v,
+            fav: !!(r[REC - 1] & FAV),
             home: homeOf({home: hk ? Array.from(hk) : null}), own: ownOf({own: ow ? Array.from(ow) : null})};
   }
   /* a record on the wire, the knobs after it only when one is not default (so a firmware from before them, which
    * refuses the longer message, still takes every patch that does not use them) */
   const wire = p => ownDefault(p) ? (homeDefault(p) ? pack7(pack(p)) : [...pack7(pack(p)), ...homeOf(p)])
                                    : [...pack7(pack(p)), ...homeOf(p), ...ownOf(p)];
-  const write = p => p.name.trimEnd() + "\ncolor=" + p.color + "\nver=112\n" + p.values.map((v, i) => i + "," + v + "\n").join("");
+  const write = p => p.name.trimEnd() + "\ncolor=" + p.color + (p.fav ? "\nfav=1" : "") + "\nver=112\n" + p.values.map((v, i) => i + "," + v + "\n").join("");
 
   /* ---- the wire (vs_xfer.h) */
   const pack7 = b => { const o = []; for (let i = 0; i < b.length; i += 7) { const g = Array.from(b.slice(i, i + 7)); o.push(g.reduce((t, x, k) => t | ((x >> 7) & 1) << k, 0)); g.forEach(x => o.push(x & 127)); } return o; };
@@ -820,12 +825,20 @@ window.FK_DATA = {"sy1":{"lo":[0,1,0,0,0,0,0,0,0,-24,0,0,0,0,0,0,0,0,0,0,0,0,0,0
     colourOf: p => p.color,
     withName: (p, n) => Object.assign({}, p, {name: n.slice(0, NAME).padEnd(NAME), values: p.values.slice()}),
     withColour: (p, c) => Object.assign({}, p, {color: c, values: p.values.slice()}),
-    fingerprint: p => p.name.trimEnd() + "|" + p.color + "|" + p.values.join(",") + "|" + homeOf(p).join(",") + "|" + ownOf(p).join(","),
+    withFav: (p, f) => Object.assign({}, p, {fav: !!f, values: p.values.slice()}),
+    fingerprint: p => p.name.trimEnd() + "|" + p.color + "|" + p.values.join(",") + "|" + homeOf(p).join(",") + "|" + ownOf(p).join(",") + (p.fav ? "|fav" : ""),
     soundKey: p => p.values.join(","),
     parseFile(name, bytes) { return /\.sy1$/i.test(name) ? [parse(bytes)] : null; },
     fileName: (p, slot) => FK.slotName(slot) + ".sy1",
     serialise: p => new TextEncoder().encode(write(p)),
-    describe: () => ".sy1, ver 112",
+    describe: p => ".sy1, ver 112" + (p && p.fav ? " · ★ favourite" : ""),
+    /* the star (#12): an ordinary change to the slot shown (a device slot: pending until Send, undoable) */
+    actions: [{label: "★ Favourite", title: "Star or unstar this patch: the FM-1's SEQ lists the starred ones as FAVOURITES",
+               run(p, ref) {
+                 if (!ref) { FK.lib.say("Open the patch in its bank or source to star it", "bad"); return; }
+                 const why = FK.lib.putAt(ref, FK.adapter.withFav(p, !p.fav), (p.fav ? "Unstarred " : "Starred ") + p.name.trimEnd());
+                 if (why) FK.lib.say(why, "bad");
+               }}],
     preview(p) {
       const v = p.values, f = FLT[v[14]] || FLT[0];
       return {

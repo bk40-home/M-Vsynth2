@@ -10,7 +10,7 @@
 //   clock   the app's clock runs with the audio it renders, so pump() pulls real time's worth of frames every 8 ms
 //           whether or not they are heard (before Start audio they are dropped): its screen and timers keep time
 //   SysEx   what the app sends comes to M.onSysEx, a moment later (never while the app is mid-pass)
-import { Link, frame, parse, CMD } from './link.js?v=20261122153032';
+import { Link, frame, parse, CMD } from './link.js?v=20261126202521';
 
 let M, pull, ctx, node, fbPtr, pullBuf;
 let apiKeys, apiBtn, apiEnc, apiMidi, apiSysex, sxBuf;
@@ -32,7 +32,7 @@ async function boot() {
     document.getElementById('mode').textContent = 'Not built: run sh sim/build.sh';
     return;
   }
-  M = await MVsynth2({ locateFile: (path) => path + '?v=20261122153032' });   // the .wasm with the build stamp too
+  M = await MVsynth2({ locateFile: (path) => path + '?v=20261126202521' });   // the .wasm with the build stamp too
   pull    = M.cwrap('wsim_pull', 'number', ['number', 'number']);
   apiKeys = M.cwrap('wsim_keys', null, ['number']);
   apiBtn  = M.cwrap('wsim_btn',  null, ['number', 'number']);
@@ -56,7 +56,7 @@ function startAudio() {
   if (ctx) { ctx.resume(); return; }
   // the engine's fixed 44.1 kHz (a context's default 48 kHz would play sharp and drift)
   ctx = new AudioContext({ sampleRate: FS, latencyHint: 'interactive' });
-  ctx.audioWorklet.addModule('audio-worklet.js?v=20261122153032').then(() => {
+  ctx.audioWorklet.addModule('audio-worklet.js?v=20261126202521').then(() => {
     node = new AudioWorkletNode(ctx, 'mvsynth2', { outputChannelCount: [2] });
     node.connect(ctx.destination);
     const b = document.getElementById('start');

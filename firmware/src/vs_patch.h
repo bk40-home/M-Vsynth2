@@ -21,8 +21,9 @@
  *            a 1-based choice is 0-based); 0x7F in byte 16 marks an EMPTY slot
  *   111..118 the 4 routing words (86..89: ctrl src1, assign1, src2, assign2) as uint16, little endian; 0xFFFF = -1
  *            (none). A source is status << 8 | cc (0xB001 the mod wheel, 0xE000 the bend, 0xD000 pressure)
- *   119      the patch's colour (a .sy1's "color=": 0 default, 1 red, 2 blue, 3 green, 4 yellow: the five Synth2's
- *            banks use; another name is kept as default)
+ *   119      bits 0..5: the patch's colour (a .sy1's "color=": 0 default, 1 red, 2 blue, 3 green, 4 yellow: the five
+ *            Synth2's banks use; another name is kept as default). Bit 6 (VS_REC_FAV): a favourite (issue #12, Kris
+ *            25 Nov: the star is in the patch, so it goes where the patch goes; a .sy1 carries it as "fav=1")
  * 128 of them are 15360 B: one flash slot (16372 B) holds a bank.
  *
  * HOME's four knobs (Kris 18 Nov): which parameters KNOB 1..4 turn on HOME, chosen on GLO's HOME KNOBS page and kept
@@ -39,6 +40,7 @@
 #define VS_REC 120u                             /* a stored patch */
 #define VS_REC_EMPTY 0x7Fu                      /* rec.b[16]: nothing in this slot */
 #define VS_NCOLOR 5u                            /* colours: default, red, blue, green, yellow */
+#define VS_REC_FAV 0x40u                        /* rec.b[119]: the favourite's bit (the colour is below it) */
 #define VS_HOME_N 4u                            /* HOME's knobs */
 #define VS_HOME_DEF 0x7Fu                       /* a stored knob byte: the default */
 
@@ -47,6 +49,7 @@ typedef struct {
                                                    VS_NPARAM on M-Vsynth2's own (LFO FADE): not in the record */
     char name[VS_NAME];
     uint8_t color;
+    uint8_t fav;                                /* 1: a favourite (SEQ's star, #12) */
     uint8_t home[VS_HOME_N];                    /* the parameter each HOME knob turns (always a valid one: vs_home_ok) */
 } vs_patch_t;
 

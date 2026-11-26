@@ -128,11 +128,19 @@ static void sp_save_target(void)
     if (vs_prog_peek_name(&prog, save_bank, save_slot, nm)) { sp_cat(", REPLACES "); sp_trim(nm, VS_NAME); }
     else sp_cat(", EMPTY SLOT");
 }
-/* BANK's row under the cursor: "BRASS PAD, 12 OF 128" ("EMPTY, 13 OF 128") */
+/* BANK's row under the cursor: "BRASS PAD, 12 OF 128" ("EMPTY, 13 OF 128"; a favourite: "BRASS PAD, STARRED, 12 OF
+ * 128"). FAVOURITES (#12): "BRASS PAD, U3 SLOT 12, 2 OF 5" */
 static void sp_bank_row(void)
 {
+    if (fav_view) {
+        if (cursor >= fav_n) { sp_cat("NO FAVOURITES. KNOB 2 STARS A SLOT"); return; }
+        sp_trim(fav_list[cursor].name, VS_NAME);
+        sp_cat(", "); sp_cat(vs_prog_bank_name(fav_list[cursor].bank)); sp_cat(" SLOT "); sp_num(fav_list[cursor].slot + 1u);
+        sp_cat(", "); sp_num(cursor + 1u); sp_cat(" OF "); sp_num(fav_n);
+        return;
+    }
     if (vs_prog_empty(&prog, cursor)) sp_cat("EMPTY");
-    else sp_trim((const char *)prog.r[cursor].b, VS_NAME);
+    else { sp_trim((const char *)prog.r[cursor].b, VS_NAME); if (slot_fav(cursor)) sp_cat(", STARRED"); }
     sp_cat(", "); sp_num(cursor + 1u); sp_cat(" OF "); sp_num(VS_NPROG);
 }
 /* GLOBAL's knob c, as its cell shows it */
@@ -182,7 +190,7 @@ static void sp_front(int all)
         sp_cat("HOME. "); sp_prog(1); sp_cat(". ");
         sp_knobs(eng.patch.home);
     } else if (scr == SCR_BANK) {
-        sp_cat("BANK "); sp_cat(vs_prog_bank_name(prog.bank)); sp_cat(". ");
+        sp_cat("BANK "); sp_cat(fav_view ? "FAVOURITES" : vs_prog_bank_name(prog.bank)); sp_cat(". ");
         sp_bank_row();
     } else if (scr == SCR_SAVE) {
         sp_cat("SAVE "); sp_save_target(); sp_cat(". NAME ");
@@ -208,7 +216,7 @@ static void sp_front(int all)
 static struct {
     uint8_t started;
     int8_t oct;
-    uint32_t ctx, hot_t, gl_t, bank, slot, cursor, sbank, sslot, spos;
+    uint32_t ctx, hot_t, gl_t, bank, slot, cursor, sbank, sslot, spos, fav_t;
     char schar;
     char knob[ANN_MAX + 1];                     /* the last readout (a knob that didn't change says nothing) */
 } sp;
@@ -218,14 +226,14 @@ static uint32_t sp_ctx(void)                    /* the screen, its page: a chang
     uint32_t h = hsh(2166136261u, scr);
     if (scr == SCR_PAGE) h = hsh(h, page);
     if (scr == SCR_GLOBAL) h = hsh(h, gpage);
-    if (scr == SCR_BANK) h = hsh(h, prog.bank);
+    if (scr == SCR_BANK) h = hsh(h, fav_view ? 0xFAu : prog.bank);   /* (FAVOURITES: one screen, whatever bank plays) */
     return h;
 }
 static void sp_mark(void)                       /* all that is said now, or need not be */
 {
     sp.ctx = sp_ctx(); sp.hot_t = hot_t; sp.gl_t = gl_t; sp.bank = prog.bank; sp.slot = slot; sp.cursor = cursor;
     sp.sbank = save_bank; sp.sslot = save_slot; sp.spos = save_pos; sp.schar = save_name[save_pos]; sp.oct = set.oct;
-    sp.knob[0] = 0;
+    sp.fav_t = fav_t; sp.knob[0] = 0;
 }
 static void sp_later_if_new(uint32_t quiet_ms)  /* a readout: said once it settles, if it is not what was said */
 {
@@ -278,6 +286,11 @@ static void speak(void)
     if (scr == SCR_BANK) {                      /* the cursor (it plays the slot: no program change said too) */
         sp.bank = prog.bank; sp.slot = slot;
         if (cursor != sp.cursor) { sp.cursor = cursor; sp_reset(); sp_bank_row(); sp_later_if_new(120u); }
+        else if (fav_t != sp.fav_t) {           /* KNOB 2 (#12): the answer, now */
+            sp.fav_t = fav_t; sp.knob[0] = 0;
+            if (fav_view) { sp_reset(); sp_cat("STAR REMOVED. "); sp_bank_row(); ann_say(sp_buf, 0, ANN_NOW); }
+            else ann_say(slot_fav(cursor) ? "STARRED" : "STAR REMOVED", 0, ANN_NOW);
+        }
     } else if (scr == SCR_SAVE) {               /* a knob: the bank, the slot, the cursor, the character */
         sp_reset();
         if (save_bank != sp.sbank || save_slot != sp.sslot) { sp_save_target(); }
@@ -355,6 +368,15 @@ static void speak_dump(const char *path)
     scr = SCR_BANK;
     for (cursor = 0; cursor < VS_NPROG; cursor++) { sp_reset(); sp_bank_row(); OUT("ROW"); }
     cursor = 0; sp_front(0); OUT("SCREEN");
+    {   /* FAVOURITES (#12): a row, the screen, and the empty list */
+        const uint32_t n = fav_n;
+        fav_view = 1; fav_n = 1; fav_list[0].bank = 3; fav_list[0].slot = 11;
+        for (k = 0; k < VS_NAME; k++) fav_list[0].name[k] = "BRASS PAD       "[k];
+        sp_reset(); sp_bank_row(); OUT("ROW"); sp_front(0); OUT("SCREEN");
+        fav_n = 0; sp_front(0); OUT("SCREEN");
+        fav_view = 0; fav_n = n;
+        fprintf(f, "MSG\tSTARRED\nMSG\tSTAR REMOVED\n");
+    }
     scr = SCR_SAVE; save_bank = 1; save_slot = 0; save_begin();
     sp_front(0); OUT("SCREEN");
     save_bank = prog.bank ? prog.bank + 1u : 2u; sp_front(0); OUT("SCREEN");

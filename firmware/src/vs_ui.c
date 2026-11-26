@@ -171,6 +171,17 @@ static void seg(int32_t ax, int32_t ay, int32_t bx, int32_t by, int32_t w, uint1
         }
 }
 
+/* a favourite's star (#12): a pentagram about 14 px across, centred at cx, cy (pixels) */
+static void star(int32_t cx, int32_t cy, uint16_t c)
+{
+    static const int16_t P[5][2] = {{0, -112}, {107, -35}, {66, 91}, {-66, 91}, {-107, -35}};   /* Q4, radius 7 */
+    uint32_t k;
+    for (k = 0; k < 5u; k++) {
+        const uint32_t j = (k + 2u) % 5u;
+        seg(cx * 16 + 8 + P[k][0], cy * 16 + 8 + P[k][1], cx * 16 + 8 + P[j][0], cy * 16 + 8 + P[j][1], 22, c);
+    }
+}
+
 /* a column's span lo..hi (Q4 rows), its ends anti-aliased */
 static void vspan(int32_t x, int32_t lo, int32_t hi, uint16_t c)
 {
@@ -1368,16 +1379,62 @@ static void ui_draw_global(void)
 
 /* BANK: nine rows around the cursor; a row a canvas, redrawn when it changes */
 static uint32_t k_row[9];
+/* SEQ's FAVOURITES (#12): every starred patch (FACTORY's, then U1..U8), the cursor in the middle; "U3 012" its bank
+ * and slot ("FA 012": FACTORY) */
+static void ui_draw_favs(void)
+{
+    int32_t r;
+    char s[24], *p;
+    ui_head("SEQ", T.theme, "FAVOURITES", 0, 0);
+    for (r = -4; r <= 4; r++) {
+        const int32_t at = (int32_t)cursor + r;
+        const uint32_t i = (uint32_t)(r + 4);
+        const int cur = r == 0, in = at >= 0 && at < (int32_t)fav_n;
+        const vs_fav_t *f = in ? &fav_list[at] : 0;
+        const int playing = f && f->bank == set.bank && f->slot == slot;
+        uint32_t key = hsh(hsh(0xFA000000u | (uint32_t)(at & 0xFFFF), (uint32_t)cur << 1 | (uint32_t)playing), fav_n), k;
+        if (f) { key = hsh(hsh(key, (uint32_t)f->bank << 8 | f->slot), f->color); for (k = 0; k < VS_NAME; k++) key = hsh(key, (uint8_t)f->name[k]); }
+        if (key == k_row[i]) continue;
+        k_row[i] = key;
+        cv_begin(240, 22, T.bg);
+        if (f) {
+            if (cur) rframe(4, 1, 226, 20, 4, T.theme, T.fill);
+            if (playing) fill(1, 5, 2, 12, T.accent);
+            p = put_s(s, f->bank ? vs_prog_bank_name(f->bank) : "FA"); *p++ = ' '; p = put_3(p, f->slot + 1u); *p = 0;
+            txt(8, 6, &FONT_LAB, s, cur ? T.theme : T.dim);
+            for (k = 0; k < VS_NAME; k++) s[k] = f->name[k];
+            s[VS_NAME] = 0;
+            for (k = VS_NAME; k > 0u && s[k - 1u] == ' '; k--) s[k - 1u] = 0;
+            disc(60 * 16, 11 * 16, 48, f->color ? ui_patch_colour(f->color) : T.line);
+            txt_fit(70, 3, 140, &FONT_VAL, s, T.text, 0);
+            star(220, 11, T.accent);
+        } else if (cur) txt_fit(117, 6, 226, &FONT_LAB, "no favourites yet", T.dim, 1);
+        cv_blit(0, 25u + i * 22u);
+    }
+    {   /* the scroll bar */
+        static uint32_t kb;
+        if (kb != (cursor << 8 | fav_n | 0x10000000u) || need_full) {
+            kb = cursor << 8 | fav_n | 0x10000000u;
+            cv_begin(4, 198, T.bg);
+            rrect(0, 0, 3, 198, 1, T.surf);
+            if (fav_n > 1u) rrect(0, (int32_t)(cursor * 172u / (fav_n - 1u)), 3, 26, 1, T.dim);
+            cv_blit(234, 25);
+        }
+    }
+    ui_foot("K1 BANK", "", T.text, fav_n ? "K2 LEFT UNSTARS" : "K2 STARS A SLOT", T.dim);
+}
+
 static void ui_draw_bank(void)
 {
     int32_t r;
     char s[24], *p;
+    if (fav_view) { ui_draw_favs(); return; }
     p = put_s(s, "BANK  "); p = put_s(p, vs_prog_bank_name(prog.bank)); *p = 0;
     ui_head("SEQ", T.theme, s, 0, 0);
     for (r = -4; r <= 4; r++) {
         const uint32_t sl = (cursor + 128u + (uint32_t)r) & 127u, i = (uint32_t)(r + 4);
         const int cur = r == 0, empty = vs_prog_empty(&prog, sl);
-        uint32_t key = hsh(hsh(sl << 8 | prog.bank, (uint32_t)cur << 1 | (sl == slot)), empty ? 0u : prog.r[sl].b[VS_REC - 1u]);
+        uint32_t key = hsh(hsh(sl << 8 | prog.bank, (uint32_t)cur << 1 | (sl == slot)), empty ? 0u : prog.r[sl].b[VS_REC - 1u] | (uint32_t)slot_fav(sl) << 8);   /* (FACTORY's star: the settings) */
         uint32_t k;
         if (!empty) for (k = 0; k < VS_NAME; k++) key = hsh(key, prog.r[sl].b[k]);
         if (key == k_row[i]) continue;
@@ -1392,8 +1449,11 @@ static void ui_draw_bank(void)
             for (k = 0; k < VS_NAME; k++) s[k] = (char)prog.r[sl].b[k];
             s[VS_NAME] = 0;
             for (k = VS_NAME; k > 0u && s[k - 1u] == ' '; k--) s[k - 1u] = 0;
-            disc(44 * 16, 11 * 16, 48, prog.r[sl].b[VS_REC - 1u] ? ui_patch_colour(prog.r[sl].b[VS_REC - 1u]) : T.line);
-            txt_fit(54, 3, 170, &FONT_VAL, s, T.text, 0);
+            {   const uint32_t c = prog.r[sl].b[VS_REC - 1u] & (VS_REC_FAV - 1u), fav = (uint32_t)slot_fav(sl);
+                disc(44 * 16, 11 * 16, 48, c ? ui_patch_colour(c) : T.line);
+                txt_fit(54, 3, fav ? 156 : 170, &FONT_VAL, s, T.text, 0);
+                if (fav) star(220, 11, T.accent);   /* (#12) */
+            }
         }
         cv_blit(0, 25u + i * 22u);
     }
@@ -1407,7 +1467,7 @@ static void ui_draw_bank(void)
             cv_blit(234, 25);
         }
     }
-    ui_foot("K1 BANK", "", T.text, "SELECT / PRESETS SLOT", T.dim);
+    ui_foot("K1 BANK  K2 STAR", "", T.text, "PRESETS SLOT", T.dim);
 }
 
 /* everything: the theme first (a change redraws all), then the screen in view */
